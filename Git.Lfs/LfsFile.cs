@@ -2,14 +2,41 @@
 using System.IO;
 using IOPath = System.IO.Path;
 using System.Text.RegularExpressions;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Git.Lfs {
 
     public sealed class LfsFile {
         public static LfsFile Create(string path) => new LfsFile(path);
 
+        private static LfsConfigFile Find(string file) {
+            var configPath = FindFileAbove(file, LfsConfigFile.FileName).FirstOrDefault();
+            if (configPath == null)
+                return null;
+            return new LfsConfigFile(configPath);
+        }
+        private static IEnumerable<string> FindFileAbove(string file, string targetFileName) {
+
+            return FindFileAbove(
+                new DirectoryInfo(IOPath.GetDirectoryName(file)),
+                targetFileName
+            );
+        }
+        private static IEnumerable<string> FindFileAbove(DirectoryInfo dir, string targetFileName) {
+            if (dir == null)
+                yield break;
+
+            while (dir != null) {
+                var target = dir.GetFiles(targetFileName).ToArray();
+                if (target.Length == 1)
+                    yield return target[0].FullName;
+                dir = dir.Parent;
+            }
+        }
+
         private readonly string m_path;
-        private readonly LfsConfig m_config;
+        private readonly LfsConfigFile m_config;
         private readonly Uri m_url;
         private readonly string m_hint;
         private readonly LfsPointer m_pointer;
@@ -19,7 +46,7 @@ namespace Git.Lfs {
             if (!File.Exists(m_path))
                 throw new Exception($"Expected file '{path}' to exist.");
 
-            m_config = LfsConfig.Find(m_path);
+            m_config = Find(m_path);
             if (m_config == null)
                 throw new Exception($"Expected '.lfsconfig' file in directory above '{path}'.");
 
@@ -59,7 +86,7 @@ namespace Git.Lfs {
         }
 
         public string Path => m_path;
-        public LfsConfig Config => m_config;
+        public LfsConfigFile Config => m_config;
         public Uri Url => m_url;
         public string Hint => m_hint;
         public LfsPointer Pointer => m_pointer;

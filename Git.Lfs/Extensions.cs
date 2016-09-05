@@ -34,6 +34,12 @@ namespace Git.Lfs {
 
         private readonly string m_path;
 
+        public static TempFile Create(string content) {
+            var tempFile = new TempFile();
+            File.WriteAllText(tempFile, content);
+            return tempFile;
+        }
+
         public TempFile() 
             : this(IOPath.GetTempFileName()) {
         }

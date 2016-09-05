@@ -46,7 +46,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="LfsCurlFile.cs" />
+    <Compile Include="LfsConfigFileTest.cs" />
+    <Compile Include="LfsFileTest.cs" />
     <Compile Include="LfsHashTest.cs" />
     <Compile Include="LfsPointerTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

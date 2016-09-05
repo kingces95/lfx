@@ -4,48 +4,24 @@ using System.IO;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using IOPath = System.IO.Path;
+using System.Collections;
 
 namespace Git.Lfs {
 
-    public sealed class LfsConfig {
+    public sealed class LfsConfigFile : IEnumerable<KeyValuePair<string, string>> {
         public const string FileName = ".lfsconfig";
-        public const string UrlId = "lfs.url";
-        public const string RegexId = "lfs.regex";
-        public const string TypeId = "lfs.type";
-        public const string HintId = "lfs.hint";
-
-        public static LfsConfig Find(string file) {
-            var configPath = FindFileAbove(file, FileName).FirstOrDefault();
-            if (configPath == null)
-                return null;
-            return new LfsConfig(configPath);
-        }
-        private static IEnumerable<string> FindFileAbove(string file, string targetFileName) {
-
-            return FindFileAbove(
-                new DirectoryInfo(IOPath.GetDirectoryName(file)),
-                targetFileName
-            );
-        }
-        private static IEnumerable<string> FindFileAbove(DirectoryInfo dir, string targetFileName) {
-            if (dir == null)
-                yield break;
-
-            while (dir != null) {
-                var target = dir.GetFiles(targetFileName).ToArray();
-                if (target.Length == 1)
-                    yield return target[0].FullName;
-                dir = dir.Parent;
-            }
-        }
+        public const string UrlId = "lfsEx.url";
+        public const string RegexId = "lfsEx.regex";
+        public const string TypeId = "lfsEx.type";
+        public const string HintId = "lfsEx.hint";
 
         private readonly string m_path;
         private readonly string m_directory;
-        private readonly GitConfig m_config;
+        private readonly GitConfigFile m_config;
 
-        public LfsConfig(string path) {
+        internal LfsConfigFile(string path) {
             m_path = path;
-            m_config = new GitConfig(path);
+            m_config = new GitConfigFile(path);
             m_directory = IOPath.GetDirectoryName(path) + IOPath.DirectorySeparatorChar;
 
             if (Type == LfsPointerType.Archive || Type == LfsPointerType.Curl) {
@@ -64,9 +40,12 @@ namespace Git.Lfs {
         public LfsPointerType Type => m_config[TypeId] == null ? LfsPointerType.Simple : (LfsPointerType)
             Enum.Parse(typeof(LfsPointerType), m_config[TypeId], ignoreCase: true);
         public string Hint => m_config[HintId];
+
+        public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => m_config.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
-    public sealed class GitConfig {
+    public sealed class GitConfigFile : IEnumerable<KeyValuePair<string, string>> {
         private const string ConfigRegexName = "name";
         private const string ConfigRegexValue = "value";
         private static readonly string ConfigRegex =
@@ -74,7 +53,7 @@ namespace Git.Lfs {
 
         private Dictionary<string, string> m_config;
 
-        public GitConfig(string configFile) {
+        public GitConfigFile(string configFile) {
             var sr = Cmd.Execute("git.exe", $"config -l -f {configFile}");
             m_config = new Dictionary<string, string>(
                 StringComparer.InvariantCultureIgnoreCase);
@@ -98,5 +77,8 @@ namespace Git.Lfs {
                 return value;
             }
         }
+
+        public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => m_config.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }
