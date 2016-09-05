@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Text;
 using System.Security.Cryptography;
+using IOPath = System.IO.Path;
 using System.IO;
 using System.Net;
 using System.Collections.Generic;
@@ -28,11 +29,14 @@ namespace Git.Lfs {
 
         public override string ToString() => TempDir;
     }
-    public struct TempFile : IDisposable {
-        public static implicit operator string(TempFile tempFile) => tempFile.m_path;
+    public class TempFile : IDisposable {
+        public static implicit operator string(TempFile tempFile) => tempFile.ToString();
 
         private readonly string m_path;
 
+        public TempFile() 
+            : this(IOPath.GetTempFileName()) {
+        }
         public TempFile(string path) {
             m_path = path;
         }

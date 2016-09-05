@@ -2,7 +2,7 @@
 using System.IO;
 using System.Diagnostics;
 
-namespace Git {
+namespace Git.Lfs {
     public sealed class LfsCmd {
         public const string Exe = "git-lfs.exe";
 

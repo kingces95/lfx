@@ -73,7 +73,7 @@ namespace Git.Lfs {
         static void MainSmudge(string[] args) {
             var fileName = Path.GetFileName(args[1]);
 
-            var pointer = LfsPointer.Parse(Console.OpenStandardInput());
+            var pointer = LfsPointer.Parse(Console.In);
 
             var appDataDir = Environment.GetEnvironmentVariable("APPDATA") + Path.DirectorySeparatorChar;
             var gitCurlDir = appDataDir + "gitcurl" + Path.DirectorySeparatorChar;

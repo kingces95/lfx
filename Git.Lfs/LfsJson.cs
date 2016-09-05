@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Newtonsoft.Json;
 // https://github.com/github/git-lfs/blob/master/docs/api/v1/http-v1-batch.md
 
-namespace Git.Lfs {
+namespace Git.Lfs.Json {
 
     public enum LfsJsonOperation {
         Upload,

@@ -113,7 +113,7 @@ namespace Git.Lfs {
         public int Count => Files().Count();
         public IEnumerable<LfsHash> Files() => 
             Directory.GetFiles(m_objectsDir, "*", SearchOption.AllDirectories)
-                .Select(o => new LfsHash(Path.GetFileName(o)));
+                .Select(o => LfsHash.Parse(Path.GetFileName(o)));
 
         public override string ToString() => $"{m_objectsDir}";
     }

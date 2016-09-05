@@ -4,44 +4,64 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Security.Cryptography;
 using System.Text;
+using System.Linq;
 
 namespace Git.Lfs {
 
-    public struct LfsHash {
-        public const string Pattern = "([a-f][0-9]){64}";
+    public struct LfsHash : IEquatable<LfsHash> {
+        public const string Pattern = "([a-f|A-Z|0-9]){64}";
 
-        public static implicit operator string(LfsHash hash) => hash.m_value;
+        public static implicit operator string(LfsHash hash) => hash.ToString();
 
-        public static LfsHash Compute(string value) {
+        public static LfsHash Compute(string value, Encoding encoding) {
             var ms = new MemoryStream();
-            var sw = new StreamWriter(ms);
+            var sw = new StreamWriter(ms, Encoding.UTF8);
             sw.Write(value);
             sw.Flush();
+
             return Compute(ms.GetBuffer(), (int)ms.Position);
+        }
+        public static LfsHash Compute(string path) {
+            using (var file = File.OpenRead(path))
+                return Compute(file);
         }
         public static LfsHash Compute(Stream stream) {
             var ms = new MemoryStream();
             stream.CopyTo(ms);
             return Compute(ms.GetBuffer(), (int)ms.Position);
         }
-        public static LfsHash Compute(byte[] bytes) => bytes.ComputeHash(bytes.Length);
-        public static LfsHash Compute(byte[] bytes, int count) {
-            var sha = SHA256.Create();
-            var hash = new StringBuilder();
-            foreach (var b in sha.ComputeHash(bytes, 0, count))
-                hash.Append(b.ToString("x2"));
-            return new LfsHash(hash.ToString());
+        public static LfsHash Compute(byte[] bytes, int? count = null) {
+            if (count == null)
+                count = bytes.Length;
+            return new LfsHash(SHA256.Create().ComputeHash(bytes, 0, (int)count));
         }
 
-        private readonly string m_value;
-
-        public LfsHash(string value) {
-            if (!Regex.IsMatch(value, Pattern))
+        public static LfsHash Parse(string value) {
+            if (!Regex.IsMatch(value, $"^{Pattern}$"))
                 throw new Exception($"Expected regex '{Pattern}' to match '{value}'.");
+            var bytes = Enumerable.Range(0, value.Length)
+                .Where(x => x % 2 == 0)
+                .Select(x => Convert.ToByte(value.Substring(x, 2), 16))
+                .ToArray();
+            return new LfsHash(bytes);
+        }
+
+        private readonly byte[] m_value;
+
+        private LfsHash(byte[] value) {
             m_value = value;
         }
 
-        public string Value => m_value;
-        public override string ToString() => m_value;
+        public byte[] Value => m_value;
+
+        public override bool Equals(object obj) => obj is LfsHash ? ((LfsHash)obj) == this : false;
+        public bool Equals(LfsHash other) => m_value.SequenceEqual(other.m_value);
+        public override int GetHashCode() => m_value.Aggregate(0, (a, o) => a ^ o.GetHashCode());
+        public override string ToString() {
+            var hash = new StringBuilder();
+            foreach (var b in m_value)
+                hash.Append(b.ToString("x2"));
+            return hash.ToString();
+        }
     }
 }

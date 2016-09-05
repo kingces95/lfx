@@ -3,6 +3,7 @@ using System.Net;
 using System.Linq;
 using System.IO;
 using Newtonsoft.Json;
+using Git.Lfs.Json;
 
 namespace Git.Lfs {
 
