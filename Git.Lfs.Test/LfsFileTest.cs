@@ -1,6 +1,7 @@
 ﻿using Git.Lfs;
 using NUnit.Framework;
 using System;
+using System.IO;
 
 namespace Git.Lfs.Test {
 
@@ -9,9 +10,30 @@ namespace Git.Lfs.Test {
     {
         [Test]
         public static void LoadTest() {
-            //var path = @"F:\git\lfs-sandbox\packages\NUnit.2.6.4\lib\nunit.framework.dll";
-            //var lfsCurlFile = LfsFile.Create(path);
-            //Console.WriteLine($"{lfsCurlFile.Pointer}");
+            using (var dir = new TempDir()) {
+                var configFilePath = dir + LfsConfigFile.FileName;
+                File.WriteAllText(configFilePath, LfsConfigTest.LfsConfigFileContent);
+
+                var nugetDir = Path.Combine(dir, "NUnit.2.6.4");
+                Directory.CreateDirectory(nugetDir);
+
+                var lfsFilePath = Path.Combine(nugetDir, "Foo.txt");
+                File.WriteAllText(lfsFilePath, LfsPointerTest.SampleContent);
+
+                var subDir = Path.Combine(nugetDir, "subdir");
+                Directory.CreateDirectory(subDir);
+
+                var lfsSubFilePath = Path.Combine(subDir, "Foo.txt");
+                File.WriteAllText(lfsSubFilePath, LfsPointerTest.SampleContent);
+
+                var loader = new LfsLoader();
+                var lfsConfigFile = loader.GetConfigFile(configFilePath);
+                var lfsFile = loader.GetFile(lfsFilePath);
+                var lfsSubFile = loader.GetFile(lfsSubFilePath);
+
+                Assert.AreEqual(lfsConfigFile, lfsFile.ConfigFile);
+                Assert.AreEqual(lfsConfigFile, lfsSubFile.ConfigFile);
+            }
         }
     }
 }

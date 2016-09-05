@@ -53,7 +53,7 @@
   <ItemGroup>
     <Compile Include="Extensions.cs" />
     <Compile Include="LfsCmd.cs" />
-    <Compile Include="LfsConfig.cs" />
+    <Compile Include="LfsConfigFile.cs" />
     <Compile Include="LfsFile.cs" />
     <Compile Include="LfsHash.cs" />
     <Compile Include="LfsJson.cs" />

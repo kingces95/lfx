@@ -7,14 +7,28 @@ using System.Linq;
 
 namespace Git.Lfs {
 
-    public sealed class LfsFile {
-        public static LfsFile Create(string path) => new LfsFile(path);
+    public abstract partial class LfsFile {
+        internal static LfsFile Create(LfsLoader loader, string path) {
+            path = IOPath.GetFullPath(path);
+            if (!File.Exists(path))
+                throw new Exception($"Expected file '{path}' to exist.");
 
-        private static LfsConfigFile Find(string file) {
+            var configFilePath = FindConfigFile(path);
+            if (configFilePath == null)
+                return new LfsSimpleFile(loader, path);
+
+            var configFile = loader.GetConfigFile(configFilePath);
+            if (configFile.Type == LfsPointerType.Archive)
+                return new LfsArchiveFile(configFile, path);
+
+            return new LfsCurlFile(configFile, path);
+        }
+
+        private static string FindConfigFile(string file) {
             var configPath = FindFileAbove(file, LfsConfigFile.FileName).FirstOrDefault();
             if (configPath == null)
                 return null;
-            return new LfsConfigFile(configPath);
+            return configPath;
         }
         private static IEnumerable<string> FindFileAbove(string file, string targetFileName) {
 
@@ -35,60 +49,95 @@ namespace Git.Lfs {
             }
         }
 
+        private readonly LfsLoader m_loader;
+        private readonly LfsConfigFile m_configFile;
         private readonly string m_path;
-        private readonly LfsConfigFile m_config;
-        private readonly Uri m_url;
-        private readonly string m_hint;
-        private readonly LfsPointer m_pointer;
 
-        private LfsFile(string path) {
-            m_path = IOPath.GetFullPath(path);
-            if (!File.Exists(m_path))
-                throw new Exception($"Expected file '{path}' to exist.");
+        private LfsFile(LfsLoader loader, LfsConfigFile configFile, string path) {
+            m_loader = loader;
+            m_configFile = configFile;
 
-            m_config = Find(m_path);
-            if (m_config == null)
+            if (m_configFile == null)
                 throw new Exception($"Expected '.lfsconfig' file in directory above '{path}'.");
+        }
 
-            var relPathUri = m_config.Directory.ToUrl().MakeRelativeUri(m_path.ToUrl());
-            var relPath = relPathUri.ToString();
+        public string Path => m_path;
+        public LfsConfigFile ConfigFile => m_configFile;
+        public virtual Uri Url => null;
+        public virtual string Hint => null;
+        public abstract LfsPointer Pointer { get; }
+    }
 
-            m_url = Regex.Replace(
-                input: relPath,
-                pattern: m_config.Regex,
-                replacement: m_config.Url
-            ).ToUrl();
+    public abstract partial class LfsFile {
+        private sealed class LfsSimpleFile : LfsFile {
+            private readonly LfsPointer m_pointer;
 
-            var pointer = LfsPointer.Create(File.OpenRead(m_path));
+            internal LfsSimpleFile(LfsLoader loader, string path)
+                : base(loader, null, path) {
 
-            if (m_config.Type == LfsPointerType.Archive) {
+                m_pointer = LfsPointer.Create(path);
+            }
 
-                if (m_config.Hint != null) {
+            public override LfsPointer Pointer => m_pointer;
+        }
+        private abstract class LfsWebFile : LfsFile {
+            private readonly Uri m_url;
+            private readonly Uri m_relPath;
+
+            internal LfsWebFile(LfsConfigFile configFile, string path)
+                : base(configFile.Loader, configFile, path) {
+
+                m_relPath = configFile.Directory.ToUrl().MakeRelativeUri(path.ToUrl());
+
+                var url = Regex.Replace(
+                    input: m_relPath.ToString(),
+                    pattern: configFile.Regex,
+                    replacement: configFile.Url
+                );
+
+                m_url = url.ToUrl();
+            }
+
+            internal Uri RelPath => m_relPath;
+
+            public override Uri Url => m_url;
+        }
+        private sealed class LfsArchiveFile : LfsWebFile {
+            private readonly LfsPointer m_pointer;
+            private readonly string m_hint;
+
+            internal LfsArchiveFile(LfsConfigFile configFile, string path)
+                : base(configFile, path) {
+
+                if (configFile.Hint != null) {
                     m_hint = Regex.Replace(
-                        input: relPath, 
-                        pattern: m_config.Regex, 
-                        replacement: m_config.Hint
+                        input: RelPath.ToString(),
+                        pattern: configFile.Regex,
+                        replacement: configFile.Hint
                     );
                 }
 
                 // publicly hosted in an archive
-                m_pointer = pointer.AddArchive(
-                    Url, 
+                m_pointer = LfsPointer.Create(path).AddArchive(
+                    Url,
                     Hint
                 );
-            } 
-            
-            else if (m_config.Type == LfsPointerType.Curl) {
+            }
+
+            public override LfsPointer Pointer => m_pointer;
+            public override string Hint => m_hint;
+        }
+        private sealed class LfsCurlFile : LfsWebFile {
+            private readonly LfsPointer m_pointer;
+
+            internal LfsCurlFile(LfsConfigFile configFile, string path)
+                : base(configFile, path) {
 
                 // publicly hosted
-                m_pointer = pointer.AddUrl(Url);
+                m_pointer = LfsPointer.Create(path).AddUrl(Url);
             }
-        }
 
-        public string Path => m_path;
-        public LfsConfigFile Config => m_config;
-        public Uri Url => m_url;
-        public string Hint => m_hint;
-        public LfsPointer Pointer => m_pointer;
+            public override LfsPointer Pointer => m_pointer;
+        }
     }
 }

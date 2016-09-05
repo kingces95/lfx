@@ -8,13 +8,13 @@ namespace Git.Lfs.Test {
     [TestFixture]
     public static class LfsConfigTest
     {
-        private static string Nl = "\n";
-        private static string Tab = "\t";
+        private static readonly string Nl = "\n";
+        private static readonly string Tab = "\t";
 
-        private static string SampleUrl = "http://nuget.org/api/v2/package/${id}/${ver}";
-        private static string SampleRegex = @"^((?<id>.*?)[.])(?=\\d)(?<ver>[^/]*)/(?<path>.*)$";
-        private static string SampleHint = "{path}";
-        private static string LfsConfigFile =
+        public static readonly string SampleUrl = "http://nuget.org/api/v2/package/${id}/${ver}";
+        public static readonly string SampleRegex = @"^((?<id>.*?)[.])(?=\\d)(?<ver>[^/]*)/(?<path>.*)$";
+        public static readonly string SampleHint = "{path}";
+        public static readonly string LfsConfigFileContent =
             $"[lfsEx]{Nl}" +
             $"{Tab}type = archive{Nl}" +
             $"{Tab}url = {SampleUrl}{Nl}" +
@@ -24,7 +24,10 @@ namespace Git.Lfs.Test {
 
         [Test]
         public static void ParseTest() {
-            using (var configFilePath = TempFile.Create(LfsConfigFile)) {
+            using (var tempDir = new TempDir()) {
+                var configFilePath = tempDir + LfsConfigFile.FileName;
+                File.WriteAllText(configFilePath, LfsConfigFileContent);
+
                 var loader = new LfsLoader();
                 var configFile = loader.GetConfigFile(configFilePath);
 

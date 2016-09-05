@@ -11,14 +11,22 @@ using System.IO.Compression;
 
 namespace Git.Lfs {
 
-    public struct TempFiles : IDisposable, IEnumerable<string> {
+    public class TempDir : IDisposable, IEnumerable<string> {
+        public static implicit operator string(TempDir tempDir) => tempDir.ToString();
+
         private readonly string m_tempDir;
 
-        public TempFiles(string tempDir) {
+        public TempDir()
+            : this(IOPath.Combine(IOPath.GetTempPath(), IOPath.GetRandomFileName())) {
+        }
+        public TempDir(string tempDir) {
+            Directory.CreateDirectory(tempDir);
             m_tempDir = tempDir;
+            if (!m_tempDir.EndsWith($"{IOPath.DirectorySeparatorChar}"))
+                m_tempDir += IOPath.DirectorySeparatorChar;
         }
 
-        public string TempDir => m_tempDir;
+        public string Path => m_tempDir;
 
         public void Dispose() => Directory.Delete(m_tempDir, recursive: true);
 
@@ -27,7 +35,7 @@ namespace Git.Lfs {
                 .Cast<string>().GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-        public override string ToString() => TempDir;
+        public override string ToString() => Path;
     }
     public class TempFile : IDisposable {
         public static implicit operator string(TempFile tempFile) => tempFile.ToString();
@@ -63,11 +71,11 @@ namespace Git.Lfs {
             url.Download(tempFile);
             return new TempFile(tempFile);
         }
-        public static TempFiles DownloadAndUnZip(this Uri url) {
+        public static TempDir DownloadAndUnZip(this Uri url) {
             using (var tempFile = DownloadToTempFile(url)) {
-                var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+                var tempDir = new TempDir();
                 ZipFile.ExtractToDirectory(tempFile, tempDir);
-                return new TempFiles(tempDir);
+                return new TempDir(tempDir);
             }
         }
         public static Uri ToUrl(this string value, UriKind kind = UriKind.Absolute) {
