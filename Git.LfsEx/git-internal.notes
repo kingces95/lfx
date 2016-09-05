@@ -1,0 +1,10 @@
+﻿
+object types : cat-file
+  blob - content : hash-object
+  tree - struct[] { MODE, TYPE, object*, FILENAME } : update-index, write-tree
+  commit - struct { tree*, commit*, AUTHOR, COMMITTER } : commit-tree
+
+refs : update-ref
+  heads
+  tags
+

@@ -1,0 +1,67 @@
+﻿{
+  "objects": [
+    {
+      "oid": "a4f66e2198120ac07abcd4ef4ac223a86adeb170d4f2c2818f1684d73327eb79",
+      "size": 116,
+      "actions": {
+        "upload": {
+          "href": "https://github-cloud.s3.amazonaws.com/alambic/media/125669178/a4/f6/a4f66e2198120ac07abcd4ef4ac223a86adeb170d4f2c2818f1684d73327eb79?actor_id=4120386",
+          "header": {
+            "Authorization": "AWS4-HMAC-SHA256 Credential=AKIAIMWPLRQEC4XCWWPA/20160902/us-east-1/s3/aws4_request,SignedHeaders=host;x-amz-content-sha256;x-amz-date,Signature=6a43a09a786f3605b7f869cf1e2c4072657ec4566801bb3ce8d0e1e2e702484
+            {
+              "objects": [
+                {
+                  "oid": "a4f66e2198120ac07abcd4ef4ac223a86adeb170d4f2c2818f1684d73327eb79",
+                  "size": 116,
+                  "actions": {
+                    "upload": {
+                      "href": "https://github-cloud.s3.amazonaws.com/alambic/media/125669178/a4/f6/a4f66e2198120ac07abcd4ef4ac223a86adeb170d4f2c2818f1684d73327eb79?actor_id=4120386",
+                      "header": {
+                        "Authorization": "AWS4-HMAC-SHA256 Credential=AKIAIMWPLRQEC4XCWWPA/20160902/us-east-1/s3/aws4_request,SignedHeaders=host;x-amz-content-sha256;x-amz-date,Signature=6a43a09a786f3605b7f869cf1e2c4072657ec4566801bb3ce8d0e1e2e702484trace git-lfs: HTTP: f",
+                        "x-amz-content-sha256": "a4f66e2198120ac07abcd4ef4ac223a86adeb170d4f2c2818f1684d73327eb79",
+                        "x-amz-date": "20160902T130128Z"
+                      },
+                      "expires_at": "2016-09-02T13:16:28Z"
+                    },
+                    "verify": {
+                      "href": "https://api.github.com/lfs/kingces95/lfs/objects/a4f66e2198120ac07abcd4ef4ac223a86adeb170d4f2c2818f1684d73327eb79/verify",
+                      "header": {
+                        "Authorization": "RemoteAuth AD7fQis-kqkJC4i6K8gJ8U1cPU6zbs59ks5XysmowA==",
+                        "Accept": "application/vnd.git-lfs+json"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+            f","x-amz-content-sha256":"a4f66e2198120ac07abcd4ef4ac223a86adeb170d4f2c2818f1684d73327eb79","x-amz-date":"20160902T130128Z"},"expires_at":"2016-09-02T13:
+            16:
+            28Z"},"verify":{"href":"https: //api.github.com/lfs/kingces95/lfs/objects/a4f66e2198120ac07abcd4ef4ac223a86adeb170d4f2c2818f1684d73327eb79/verify","header":{"Authorization":"RemoteAuth AD7fQis-kqkJC4i6K8gJ8U1cPU6zbs59ks5XysmowA==","Accept":"application/vnd.git-lfs+json"}}}}]}
+
+
+< HTTP/1.1 200 OK
+< Transfer-Encoding: chunked
+< Access-Control-Allow-Origin: *
+< Access-Control-Expose-Headers: ETag, Link, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval
+< Cache-Control: private, max-age=60, s-maxage=60
+< Content-Security-Policy: default-src 'none'
+< Content-Type: application/json; charset=utf-8
+< Date: Fri, 02 Sep 2016 13:01:28 GMT
+< Etag: W/"f6464ead75bd1112dc6fb99e1efb0e82"
+< Server: GitHub.com
+< Status: 200 OK
+< Strict-Transport-Security: max-age=31536000; includeSubdomains; preload
+< Vary: Accept, Authorization, Cookie, X-GitHub-OTP
+< Vary: Accept-Encoding
+< X-Accepted-Oauth-Scopes:
+< X-Content-Type-Options: nosniff
+< X-Frame-Options: deny
+< X-Github-Media-Type: unknown
+< X-Github-Request-Id: 49F1C14D:084E:C5D71F:57C97828
+< X-Oauth-Scopes: gist, repo
+< X-Ratelimit-Limit: 3000
+< X-Ratelimit-Remaining: 2999
+< X-Ratelimit-Reset: 1472821348
+< X-Served-By: a6882e5cd2513376cb9481dbcd83f3a2
+< X-Xss-Protection: 1; mode=block
+<
