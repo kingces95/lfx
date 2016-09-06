@@ -46,6 +46,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="LfsBlobCacheTest.cs" />
     <Compile Include="LfsBlobStoreTest.cs" />
     <Compile Include="LfsConfigFileTest.cs" />
     <Compile Include="LfsTest.cs" />

@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using IODirectory = System.IO.Directory;
 using System.Linq;
+using System.Collections;
 
 namespace Git.Lfs {
 
-    public sealed class LfsBlobStore {
+    public sealed class LfsBlobStore : IEnumerable<LfsBlob> {
         private readonly string m_dir;
 
         public LfsBlobStore(string dir) {
@@ -73,12 +74,15 @@ namespace Git.Lfs {
             LfsBlob blob;
             return TryGet(hash, out blob);
         }
-        public int Count => Files().Count();
-        public IEnumerable<LfsBlob> Files() {
-            return IODirectory.GetFiles(m_dir, "*", SearchOption.AllDirectories)
-                .Select(o => new LfsBlob(this, LfsHash.Parse(Path.GetFileName(o)), o));
-        }
+        public int Count => this.Count();
 
         public override string ToString() => $"{m_dir}";
+
+        public IEnumerator<LfsBlob> GetEnumerator() {
+            return IODirectory.GetFiles(m_dir, "*", SearchOption.AllDirectories)
+                .Select(o => new LfsBlob(this, LfsHash.Parse(Path.GetFileName(o)), o))
+                .GetEnumerator();
+        }
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

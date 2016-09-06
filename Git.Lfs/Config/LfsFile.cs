@@ -2,7 +2,6 @@
 using System.IO;
 using IOPath = System.IO.Path;
 using System.Text.RegularExpressions;
-using System.Collections.Generic;
 using System.Linq;
 
 namespace Git.Lfs {
@@ -13,7 +12,7 @@ namespace Git.Lfs {
             if (!File.Exists(path))
                 throw new Exception($"Expected file '{path}' to exist.");
 
-            var configFilePath = FindConfigFile(path);
+            var configFilePath = path.FindFileAbove(LfsConfigFile.FileName);
             if (configFilePath == null)
                 return new LfsSimpleFile(loader, path);
 
@@ -22,31 +21,6 @@ namespace Git.Lfs {
                 return new LfsArchiveFile(configFile, path);
 
             return new LfsCurlFile(configFile, path);
-        }
-
-        private static string FindConfigFile(string file) {
-            var configPath = FindFileAbove(file, LfsConfigFile.FileName).FirstOrDefault();
-            if (configPath == null)
-                return null;
-            return configPath;
-        }
-        private static IEnumerable<string> FindFileAbove(string file, string targetFileName) {
-
-            return FindFileAbove(
-                new DirectoryInfo(IOPath.GetDirectoryName(file)),
-                targetFileName
-            );
-        }
-        private static IEnumerable<string> FindFileAbove(DirectoryInfo dir, string targetFileName) {
-            if (dir == null)
-                yield break;
-
-            while (dir != null) {
-                var target = dir.GetFiles(targetFileName).ToArray();
-                if (target.Length == 1)
-                    yield return target[0].FullName;
-                dir = dir.Parent;
-            }
         }
 
         private readonly LfsLoader m_loader;

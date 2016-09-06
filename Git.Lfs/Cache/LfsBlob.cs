@@ -6,6 +6,8 @@ using System.Linq;
 namespace Git.Lfs {
 
     public struct LfsBlob : IEquatable<LfsBlob> {
+        private const int ShortHashLength = 8;
+
         private readonly LfsBlobStore m_store;
         private readonly LfsHash m_hash;
         private readonly string m_file;
@@ -23,6 +25,6 @@ namespace Git.Lfs {
         public override bool Equals(object obj) => obj is LfsBlob ? Equals((LfsBlob)obj) : false;
         public bool Equals(LfsBlob other) => m_file.EqualPath(other.m_file);
         public override int GetHashCode() => Path.GetHashCode();
-        public override string ToString() => $"{Hash}: {Path}";
+        public override string ToString() => $"{Hash.ToString().Substring(0, ShortHashLength)}: {Path}";
     }
 }

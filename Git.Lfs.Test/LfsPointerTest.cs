@@ -9,6 +9,21 @@ using System.Threading.Tasks;
 namespace Git.Lfs.Test {
 
     public abstract class LfsPointerTest {
+        public static LfsPointer CreatePointer(
+            string hashValue,
+            int size,
+            LfsPointerType? type = null,
+            Uri url = null,
+            string hint = null) {
+
+            var pointerText = CreatePointerText(
+                Version, LfsHashMethod.Sha256,
+                hashValue, size,
+                type, url, hint
+            );
+
+            return LfsPointer.Parse(pointerText);
+        }
         public static string CreatePointerText(
             Uri version,
             LfsHashMethod hashMethod,
@@ -58,25 +73,25 @@ namespace Git.Lfs.Test {
         public static readonly Uri Url = @"http://file.server.com/foo/bar.file".ToUrl();
         public static readonly string Hint = "/foo/bar";
 
-        public static readonly string OptherPointerText =
+        public static readonly string OtherPointerText =
             CreatePointerText(Version, Method, HashValue, OtherSize);
 
-        public static readonly string SampleSimplePointerText =
+        public static readonly string SimplePointerText =
             CreatePointerText(Version, Method, HashValue, Size);
 
-        public static readonly string SampleCurlPointerText =
+        public static readonly string CurlPointerText =
             CreatePointerText(Version, Method, HashValue, Size, 
                 LfsPointerType.Curl, Url);
 
-        public static readonly string SampleArchivePointerText =
+        public static readonly string ArchivePointerText =
             CreatePointerText(Version, Method, HashValue, Size,
                 LfsPointerType.Archive, Url, Hint);
 
         public static void TestSamplePointer(LfsPointer pointer, LfsPointerType type) {
 
-            var pointerText = type == LfsPointerType.Simple ? SampleSimplePointerText :
-                type == LfsPointerType.Curl ? SampleCurlPointerText :
-                SampleArchivePointerText;
+            var pointerText = type == LfsPointerType.Simple ? SimplePointerText :
+                type == LfsPointerType.Curl ? CurlPointerText :
+                ArchivePointerText;
 
             Assert.AreEqual(type, pointer.Type);
             Assert.AreEqual(Version, pointer.Version);
@@ -120,7 +135,7 @@ namespace Git.Lfs.Test {
             }
 
 
-            var otherPointer = LfsPointer.Parse(OptherPointerText);
+            var otherPointer = LfsPointer.Parse(OtherPointerText);
             Assert.AreNotEqual(pointer, otherPointer);
             Assert.AreNotEqual(pointer.GetHashCode(), otherPointer.GetHashCode());
         }
@@ -132,7 +147,7 @@ namespace Git.Lfs.Test {
         [Test]
         public static void ParseTest() {
 
-            var pointerText = SampleSimplePointerText;
+            var pointerText = SimplePointerText;
             var pointer = LfsPointer.Parse(pointerText);
 
             TestSamplePointer(pointer, LfsPointerType.Simple);
@@ -163,10 +178,10 @@ namespace Git.Lfs.Test {
         [Test]
         public static void ParseTest() {
 
-            var pointerText = SampleSimplePointerText;
+            var pointerText = SimplePointerText;
             var pointer = LfsPointer.Parse(pointerText);
 
-            var curlPointerParsed = LfsPointer.Parse(SampleCurlPointerText);
+            var curlPointerParsed = LfsPointer.Parse(CurlPointerText);
             TestSamplePointer(curlPointerParsed, LfsPointerType.Curl);
 
             var curlPointer = pointer.AddUrl(Url);
@@ -184,10 +199,10 @@ namespace Git.Lfs.Test {
         [Test]
         public static void ParseTest() {
 
-            var pointerText = SampleSimplePointerText;
+            var pointerText = SimplePointerText;
             var pointer = LfsPointer.Parse(pointerText);
 
-            var archivePointerParsed = LfsPointer.Parse(SampleArchivePointerText);
+            var archivePointerParsed = LfsPointer.Parse(ArchivePointerText);
             TestSamplePointer(archivePointerParsed, LfsPointerType.Archive);
 
             var archivePointer = pointer.AddArchive(Url, Hint);

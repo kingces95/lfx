@@ -1,47 +1,26 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
 namespace Git.Lfs {
 
-    public sealed class LfsBlobCache {
-        private readonly LfsLoader m_loader;
+    public sealed class LfsBlobCache : IEnumerable<LfsBlob> {
         private readonly LfsBlobCache m_parentCache;
         private readonly LfsBlobStore m_store;
 
         public LfsBlobCache(
-            LfsLoader loader,
-            string objectsDir, 
+            string storeDir, 
             LfsBlobCache parent = null) {
 
-            m_store = new LfsBlobStore(objectsDir);
-            m_loader = loader;
+            m_store = new LfsBlobStore(storeDir);
             m_parentCache = parent;
         }
 
-        public LfsLoader Loader => m_loader;
         public LfsBlobCache Parent => m_parentCache;
         public LfsBlobStore Store => m_store;
-        public bool TryGet(LfsHash hash, out LfsBlob blob) {
 
-            // try local store
-            blob = default(LfsBlob);
-            if (m_store.TryGet(hash, out blob))
-                return true;
-
-            // no parent, no hope
-            if (m_parentCache == null)
-                return false;
-
-            // try parent store
-            if (!m_parentCache.TryGet(hash, out blob))
-                return false;
-
-            // promote to local store
-            m_store.Add(blob);
-            return true;
-        }
         public LfsBlob Load(LfsPointer pointer) {
             LfsBlob blob;
             if (TryGet(pointer.Hash, out blob))
@@ -53,9 +32,8 @@ namespace Git.Lfs {
             else if (pointer.Type == LfsPointerType.Curl)
                 Load(pointer.Url);
 
-            TryGet(pointer.Hash, out blob);
-            if (blob.Hash != pointer.Hash)
-                throw new Exception($"Expected resolved LfsPointer hash '{pointer.Hash}' to match its hash: '{blob.Hash}'");
+            if (!TryGet(pointer.Hash, out blob))
+                throw new Exception($"Expected LfsPointer hash '{pointer.Hash}' to match downloaded content.");
 
             return blob;
         }
@@ -73,5 +51,41 @@ namespace Git.Lfs {
             using (var tempFiles = url.DownloadAndUnZip())
                 return tempFiles.Select(o => m_store.Add(o)).ToList();
         }
+
+        public bool Promote(LfsHash hash) {
+            LfsBlob blob;
+            return TryGet(hash, out blob);
+        }
+        public bool TryGet(LfsHash hash, out LfsBlob blob) {
+
+            // try local store
+            blob = default(LfsBlob);
+            if (m_store.TryGet(hash, out blob))
+                return true;
+
+            // no parent, no hope
+            if (m_parentCache == null)
+                return false;
+
+            // try parent store
+            LfsBlob parentBlob;
+            if (!m_parentCache.TryGet(hash, out parentBlob))
+                return false;
+
+            // promote to local store
+            blob = m_store.Add(parentBlob);
+            return true;
+        }
+
+        public IEnumerator<LfsBlob> GetEnumerator() {
+            // promote parent blobs to child
+            if (m_parentCache != null) {
+                foreach (var blob in m_parentCache)
+                    Promote(blob.Hash);
+            }
+
+            return m_store.GetEnumerator();
+        }
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }
