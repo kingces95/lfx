@@ -47,6 +47,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="LfsConfigFileTest.cs" />
+    <Compile Include="LfsTest.cs" />
     <Compile Include="LfsFileTest.cs" />
     <Compile Include="LfsHashTest.cs" />
     <Compile Include="LfsPointerTest.cs" />

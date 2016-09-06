@@ -37,7 +37,7 @@ namespace Git.Lfs {
         }
 
         static void MainClean(string[] args) {
-            var loader = new LfsLoader();
+            var loader = LfsLoader.Create();
             var file = loader.GetFile(args[1]);
             var pointer = file.Pointer;
             Console.Write(pointer);

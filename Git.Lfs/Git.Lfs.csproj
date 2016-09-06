@@ -51,6 +51,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Cache\LfsBlob.cs" />
+    <Compile Include="Cache\LfsBlobStore.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="LfsCmd.cs" />
     <Compile Include="LfsConfigFile.cs" />
@@ -59,7 +61,7 @@
     <Compile Include="LfsJson.cs" />
     <Compile Include="LfsLoader.cs" />
     <Compile Include="LfsObject.cs" />
-    <Compile Include="LfsObjectCache.cs" />
+    <Compile Include="Cache\LfsBlobCache.cs" />
     <Compile Include="LfsPointer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

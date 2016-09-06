@@ -6,29 +6,26 @@ using System.IO;
 namespace Git.Lfs.Test {
 
     [TestFixture]
-    public static class LfsConfigTest
-    {
-        private static readonly string Nl = "\n";
-        private static readonly string Tab = "\t";
+    public class LfsArchiveConfigTest : LfsTest {
 
-        public static readonly string SampleUrl = "http://nuget.org/api/v2/package/${id}/${ver}";
-        public static readonly string SampleRegex = @"^((?<id>.*?)[.])(?=\\d)(?<ver>[^/]*)/(?<path>.*)$";
-        public static readonly string SampleHint = "{path}";
-        public static readonly string LfsConfigFileContent =
+        public static readonly string Url = "http://nuget.org/api/v2/package/${id}/${ver}";
+        public static readonly string Regex = @"^((?<id>.*?)[.])(?=\\d)(?<ver>[^/]*)/(?<path>.*)$";
+        public static readonly string Hint = "{path}";
+        public static readonly string ConfigFileContent =
             $"[lfsEx]{Nl}" +
             $"{Tab}type = archive{Nl}" +
-            $"{Tab}url = {SampleUrl}{Nl}" +
-            $"{Tab}hint = {SampleHint}{Nl}" +
-            $"{Tab}regex = {SampleRegex}{Nl}" +
+            $"{Tab}url = {Url}{Nl}" +
+            $"{Tab}hint = {Hint}{Nl}" +
+            $"{Tab}regex = {Regex}{Nl}" +
             $"{Nl}";
 
         [Test]
-        public static void ParseTest() {
+        public static void ArchiveParseTest() {
             using (var tempDir = new TempDir()) {
                 var configFilePath = tempDir + LfsConfigFile.FileName;
-                File.WriteAllText(configFilePath, LfsConfigFileContent);
+                File.WriteAllText(configFilePath, ConfigFileContent);
 
-                var loader = new LfsLoader();
+                var loader = LfsLoader.Create();
                 var configFile = loader.GetConfigFile(configFilePath);
 
                 foreach (var config in configFile)
@@ -40,8 +37,43 @@ namespace Git.Lfs.Test {
                     configFile.Directory
                 );
                 Assert.AreEqual(LfsPointerType.Archive, configFile.Type);
-                Assert.AreEqual(SampleUrl, configFile.Url);
-                Assert.AreEqual(SampleHint, configFile.Hint);
+                Assert.AreEqual(Url, configFile.Url);
+                Assert.AreEqual(Hint, configFile.Hint);
+            }
+        }
+    }
+
+    [TestFixture]
+    public class LfsCurlConfigTest : LfsTest {
+
+        public static readonly string Url = "https://dist.nuget.org/win-x86-commandline/v3.4.4/${file}";
+        public static readonly string Regex = @"^(.*/)?(?<file>.*)$";
+        public static readonly string ConfigFileContent =
+            $"[lfsEx]{Nl}" +
+            $"{Tab}type = curl{Nl}" +
+            $"{Tab}url = {Url}{Nl}" +
+            $"{Tab}regex = {Regex}{Nl}" +
+            $"{Nl}";
+
+        [Test]
+        public static void CurlParseTest() {
+            using (var tempDir = new TempDir()) {
+                var configFilePath = tempDir + LfsConfigFile.FileName;
+                File.WriteAllText(configFilePath, ConfigFileContent);
+
+                var loader = LfsLoader.Create();
+                var configFile = loader.GetConfigFile(configFilePath);
+
+                foreach (var config in configFile)
+                    Console.WriteLine($"{config.Key}: {config.Value}");
+
+                Assert.AreEqual(configFilePath.ToString(), configFile.Path);
+                Assert.AreEqual(
+                    Path.GetDirectoryName(configFilePath) + Path.DirectorySeparatorChar,
+                    configFile.Directory
+                );
+                Assert.AreEqual(LfsPointerType.Curl, configFile.Type);
+                Assert.AreEqual(Url, configFile.Url);
             }
         }
     }
