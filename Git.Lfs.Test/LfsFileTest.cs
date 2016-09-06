@@ -14,16 +14,20 @@ namespace Git.Lfs.Test {
                 var configFilePath = dir + LfsConfigFile.FileName;
                 File.WriteAllText(configFilePath, LfsArchiveConfigTest.ConfigFileContent);
 
-                var nugetDir = Path.Combine(dir, "NUnit.2.6.4");
-                Directory.CreateDirectory(nugetDir);
+                var nunitDir = Path.Combine(dir, "NUnit.2.6.4");
+                Directory.CreateDirectory(nunitDir);
 
-                var lfsFilePath = Path.Combine(nugetDir, "Foo.txt");
+                var licenseName = "License.txt";
+                var lfsFilePath = Path.Combine(nunitDir, licenseName);
                 File.WriteAllText(lfsFilePath, LfsPointerTest.Content);
 
-                var subDir = Path.Combine(nugetDir, "subdir");
-                Directory.CreateDirectory(subDir);
+                var libDirName = @"lib";
+                var libDir = Path.Combine(nunitDir, libDirName);
+                Directory.CreateDirectory(libDir);
 
-                var lfsSubFilePath = Path.Combine(subDir, "Foo.txt");
+                var dllName = "NUnit.dll";
+                var subPath = Path.Combine(libDirName, dllName);
+                var lfsSubFilePath = Path.Combine(nunitDir, subPath);
                 File.WriteAllText(lfsSubFilePath, LfsPointerTest.Content);
 
                 var loader = LfsLoader.Create();
@@ -32,7 +36,10 @@ namespace Git.Lfs.Test {
                 var lfsSubFile = loader.GetFile(lfsSubFilePath);
 
                 Assert.AreEqual(lfsConfigFile, lfsFile.ConfigFile);
+                Assert.AreEqual(licenseName, lfsFile.Hint);
+
                 Assert.AreEqual(lfsConfigFile, lfsSubFile.ConfigFile);
+                Assert.AreEqual(subPath.Replace(@"\","/"), lfsSubFile.Hint);
             }
         }
 

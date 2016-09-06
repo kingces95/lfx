@@ -10,7 +10,7 @@ namespace Git.Lfs.Test {
 
         public static readonly string Url = "http://nuget.org/api/v2/package/${id}/${ver}";
         public static readonly string Regex = @"^((?<id>.*?)[.])(?=\\d)(?<ver>[^/]*)/(?<path>.*)$";
-        public static readonly string Hint = "{path}";
+        public static readonly string Hint = "${path}";
         public static readonly string ConfigFileContent =
             $"[lfsEx]{Nl}" +
             $"{Tab}type = archive{Nl}" +
@@ -22,12 +22,16 @@ namespace Git.Lfs.Test {
         [Test]
         public static void ArchiveParseTest() {
             using (var tempDir = new TempDir()) {
+
+                // write config file
                 var configFilePath = tempDir + LfsConfigFile.FileName;
                 File.WriteAllText(configFilePath, ConfigFileContent);
 
+                // load config file
                 var loader = LfsLoader.Create();
                 var configFile = loader.GetConfigFile(configFilePath);
 
+                // print keys
                 foreach (var config in configFile)
                     Console.WriteLine($"{config.Key}: {config.Value}");
 

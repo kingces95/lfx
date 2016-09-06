@@ -49,6 +49,8 @@ namespace Git.Lfs {
 
         public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => m_config.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        public override string ToString() => m_config.ToString();
     }
 
     public sealed class GitConfigFile : IEnumerable<KeyValuePair<string, string>> {
@@ -57,10 +59,13 @@ namespace Git.Lfs {
         private static readonly string ConfigRegex =
             $"(?<{ConfigRegexName}>[^=]*)=(?<{ConfigRegexValue}>.*)";
 
+        private string m_path;
         private Dictionary<string, string> m_config;
 
-        public GitConfigFile(string configFile) {
-            var sr = Cmd.Execute("git.exe", $"config -l -f {configFile}");
+        public GitConfigFile(string path) {
+            m_path = path;
+
+            var sr = Cmd.Execute("git.exe", $"config -l -f {path}");
             m_config = new Dictionary<string, string>(
                 StringComparer.InvariantCultureIgnoreCase);
 
@@ -69,7 +74,7 @@ namespace Git.Lfs {
                 if (line == null)
                     break;
 
-                var match = Regex.Match(line, ConfigRegex);
+                var match = Regex.Match(line, ConfigRegex, RegexOptions.IgnoreCase);
                 var name = match.Groups[ConfigRegexName].Value;
                 var value = match.Groups[ConfigRegexValue].Value;
                 m_config[name] = value;
@@ -86,5 +91,7 @@ namespace Git.Lfs {
 
         public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => m_config.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        public override string ToString() => m_path;
     }
 }

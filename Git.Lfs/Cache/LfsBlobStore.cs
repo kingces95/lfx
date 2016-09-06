@@ -11,7 +11,7 @@ namespace Git.Lfs {
         private readonly string m_dir;
 
         public LfsBlobStore(string dir) {
-            m_dir = dir.ToDirectory();
+            m_dir = dir.ToDir();
             IODirectory.CreateDirectory(m_dir);
         }
 

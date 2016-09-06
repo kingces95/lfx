@@ -4,10 +4,10 @@
     <ProjectView>ProjectFiles</ProjectView>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
-    <StartAction>Program</StartAction>
+    <StartAction>Project</StartAction>
     <StartProgram>C:\Program Files\Git\cmd\git.exe</StartProgram>
-    <StartArguments>clone https://github.com/kingces95/lfs.git lfs-pull</StartArguments>
-    <StartWorkingDirectory>F:\git\</StartWorkingDirectory>
+    <StartArguments>clean packages\NUnit.2.6.4\lib\nunit.framework.dll</StartArguments>
+    <StartWorkingDirectory>F:\git\lfs-test\source</StartWorkingDirectory>
     <EnableUnmanagedDebugging>true</EnableUnmanagedDebugging>
   </PropertyGroup>
 </Project>

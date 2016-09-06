@@ -33,7 +33,7 @@ namespace Git.Lfs {
                 ignoreCase: false
             ) == 0;
         }
-        public static string ToDirectory(this string dir) {
+        public static string ToDir(this string dir) {
             if (!dir.EndsWith($"{Path.DirectorySeparatorChar}"))
                 dir += Path.DirectorySeparatorChar;
             return dir;
@@ -59,10 +59,13 @@ namespace Git.Lfs {
 
             while (dir != null) {
 
-                foreach (var result in directories ? 
+                foreach (var o in directories ? 
                     dir.GetDirectories(searchPattern).Select(o => o.FullName) :
                     dir.GetFiles(searchPattern).Select(o => o.FullName)) {
 
+                    var result = o;
+                    if (directories)
+                        result = result.ToDir();
                     yield return result;
                 }
 
