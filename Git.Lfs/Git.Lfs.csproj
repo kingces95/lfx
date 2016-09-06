@@ -53,10 +53,11 @@
   <ItemGroup>
     <Compile Include="Cache\LfsBlob.cs" />
     <Compile Include="Cache\LfsBlobStore.cs" />
-    <Compile Include="Extensions.cs" />
-    <Compile Include="LfsCmd.cs" />
-    <Compile Include="LfsConfigFile.cs" />
-    <Compile Include="LfsFile.cs" />
+    <Compile Include="Util\Temp.cs" />
+    <Compile Include="Util\Extensions.cs" />
+    <Compile Include="Config\LfsCmd.cs" />
+    <Compile Include="Config\LfsConfigFile.cs" />
+    <Compile Include="Config\LfsFile.cs" />
     <Compile Include="LfsHash.cs" />
     <Compile Include="LfsJson.cs" />
     <Compile Include="LfsLoader.cs" />

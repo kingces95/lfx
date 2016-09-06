@@ -24,6 +24,7 @@ namespace Git.Lfs {
             if (string.Compare(IOPath.GetFileName(path), FileName, ignoreCase: true) != 0)
                 throw new Exception($"Expected LsfConfigFile path '{path}' to have name '.lfsconfig'.");
 
+            m_loader = loader;
             m_path = path;
             m_config = new GitConfigFile(path);
             m_directory = IOPath.GetDirectoryName(path) + IOPath.DirectorySeparatorChar;

@@ -18,13 +18,13 @@ namespace Git.Lfs.Test {
                 Directory.CreateDirectory(nugetDir);
 
                 var lfsFilePath = Path.Combine(nugetDir, "Foo.txt");
-                File.WriteAllText(lfsFilePath, LfsPointerTest.SampleContent);
+                File.WriteAllText(lfsFilePath, LfsPointerTest.Content);
 
                 var subDir = Path.Combine(nugetDir, "subdir");
                 Directory.CreateDirectory(subDir);
 
                 var lfsSubFilePath = Path.Combine(subDir, "Foo.txt");
-                File.WriteAllText(lfsSubFilePath, LfsPointerTest.SampleContent);
+                File.WriteAllText(lfsSubFilePath, LfsPointerTest.Content);
 
                 var loader = LfsLoader.Create();
                 var lfsConfigFile = loader.GetConfigFile(configFilePath);
@@ -46,7 +46,7 @@ namespace Git.Lfs.Test {
                 Directory.CreateDirectory(nugetDir);
 
                 var lfsFilePath = Path.Combine(nugetDir, "nuget.exe");
-                File.WriteAllText(lfsFilePath, LfsPointerTest.SampleContent);
+                File.WriteAllText(lfsFilePath, LfsPointerTest.Content);
 
                 var subDir = Path.Combine(nugetDir, "subdir");
                 Directory.CreateDirectory(subDir);

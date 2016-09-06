@@ -22,21 +22,23 @@ namespace Git.Lfs {
         private LfsBlobCache m_cache;
         private readonly Dictionary<LfsHash, LfsObject> m_objects; 
         private readonly Dictionary<FileInfo, LfsConfigFile> m_configFiles;
-        private readonly Dictionary<FileInfo, LfsFile> m_files;
+        private readonly Dictionary<string, LfsFile> m_files;
 
         private LfsLoader() {
             m_objects = new Dictionary<LfsHash, LfsObject>();
             m_configFiles = new Dictionary<FileInfo, LfsConfigFile>();
-            m_files = new Dictionary<FileInfo, LfsFile>();
+            m_files = new Dictionary<string, LfsFile>(
+                StringComparer.InvariantCultureIgnoreCase
+            );
         }
 
         public LfsBlobCache Cache => m_cache;
         public LfsFile GetFile(string path) {
-            var file = new FileInfo(path);
+            var fullPath = Path.GetFullPath(path);
 
             LfsFile result;
-            if (!m_files.TryGetValue(file, out result))
-                m_files[file] = result = LfsFile.Create(this, path);
+            if (!m_files.TryGetValue(fullPath, out result))
+                m_files[fullPath] = result = LfsFile.Create(this, path);
 
             return result;
         }

@@ -1,23 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using IODirectory = System.IO.Directory;
 using System.Linq;
 
 namespace Git.Lfs {
 
     public sealed class LfsBlobStore {
-        private readonly string m_objectsDir;
+        private readonly string m_dir;
 
-        public LfsBlobStore(
-            string objectsDir) {
-
-            m_objectsDir = objectsDir;
-            Directory.CreateDirectory(m_objectsDir);
+        public LfsBlobStore(string dir) {
+            m_dir = dir.ToDirectory();
+            IODirectory.CreateDirectory(m_dir);
         }
 
         private string GetPath(LfsHash hash) {
             return Path.Combine(
-                m_objectsDir,
+                m_dir,
                 hash.ToString().Substring(0, 2),
                 hash.ToString().Substring(2, 2),
                 hash
@@ -28,22 +27,29 @@ namespace Git.Lfs {
             // insert
             var path = GetPath(hash);
             if (!File.Exists(path)) {
-                Directory.CreateDirectory(Path.GetDirectoryName(path));
-
-                stream.CopyTo(File.OpenWrite(path));
+                IODirectory.CreateDirectory(Path.GetDirectoryName(path));
+                using (var targetStream = File.OpenWrite(path))
+                    stream.CopyTo(targetStream);
             }
 
             return new LfsBlob(this, hash, path);
         }
 
+        public string Directory => m_dir;
         public LfsBlob Add(LfsBlob blob) {
-            var path = GetPath(blob.Hash);
+            var hash = blob.Hash;
+
+            var path = GetPath(hash);
             if (File.Exists(path))
                 return new LfsBlob(this, blob.Hash, path);
 
-            return Add(File.OpenRead(path), blob.Hash);
+            using (var stream = File.OpenRead(blob.Path))
+                return Add(stream, hash);
         }
-        public LfsBlob Add(string path) => Add(File.OpenRead(path));
+        public LfsBlob Add(string path) {
+            using (var stream = File.OpenRead(path))
+                return Add(stream);
+        }
         public LfsBlob Add(Stream stream) {
             if (!stream.CanSeek)
                 stream = stream.ToMemoryStream();
@@ -69,10 +75,10 @@ namespace Git.Lfs {
         }
         public int Count => Files().Count();
         public IEnumerable<LfsBlob> Files() {
-            return Directory.GetFiles(m_objectsDir, "*", SearchOption.AllDirectories)
+            return IODirectory.GetFiles(m_dir, "*", SearchOption.AllDirectories)
                 .Select(o => new LfsBlob(this, LfsHash.Parse(Path.GetFileName(o)), o));
         }
 
-        public override string ToString() => $"{m_objectsDir}";
+        public override string ToString() => $"{m_dir}";
     }
 }

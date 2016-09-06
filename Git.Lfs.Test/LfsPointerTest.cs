@@ -48,29 +48,29 @@ namespace Git.Lfs.Test {
             }.Where(o => o != null).ToArray());
         }
 
-        public static readonly Uri SampleVersion = LfsPointer.Version1Uri;
-        public static readonly LfsHashMethod SampleMethod = LfsHashMethod.Sha256;
-        public static readonly string SampleContent = LfsHashTest.SampleContent;
-        public static readonly string SampleHashValue = LfsHashTest.SampleHashValue;
+        public static readonly Uri Version = LfsPointer.Version1Uri;
+        public static readonly LfsHashMethod Method = LfsHashMethod.Sha256;
+        public static readonly string Content = LfsHashTest.Content;
+        public static readonly string HashValue = LfsHashTest.HashValue;
         public static readonly int ByteOrderMarkLength = 3;
-        public static readonly int SampleSize = LfsHashTest.SampleContent.Length + ByteOrderMarkLength;
+        public static readonly int Size = LfsHashTest.Content.Length + ByteOrderMarkLength;
         public static readonly int OtherSize = 123120;
-        public static readonly Uri SampleUrl = @"http://file.server.com/foo/bar.file".ToUrl();
-        public static readonly string SampleHint = "/foo/bar";
+        public static readonly Uri Url = @"http://file.server.com/foo/bar.file".ToUrl();
+        public static readonly string Hint = "/foo/bar";
 
         public static readonly string OptherPointerText =
-            CreatePointerText(SampleVersion, SampleMethod, SampleHashValue, OtherSize);
+            CreatePointerText(Version, Method, HashValue, OtherSize);
 
         public static readonly string SampleSimplePointerText =
-            CreatePointerText(SampleVersion, SampleMethod, SampleHashValue, SampleSize);
+            CreatePointerText(Version, Method, HashValue, Size);
 
         public static readonly string SampleCurlPointerText =
-            CreatePointerText(SampleVersion, SampleMethod, SampleHashValue, SampleSize, 
-                LfsPointerType.Curl, SampleUrl);
+            CreatePointerText(Version, Method, HashValue, Size, 
+                LfsPointerType.Curl, Url);
 
         public static readonly string SampleArchivePointerText =
-            CreatePointerText(SampleVersion, SampleMethod, SampleHashValue, SampleSize,
-                LfsPointerType.Archive, SampleUrl, SampleHint);
+            CreatePointerText(Version, Method, HashValue, Size,
+                LfsPointerType.Archive, Url, Hint);
 
         public static void TestSamplePointer(LfsPointer pointer, LfsPointerType type) {
 
@@ -79,11 +79,11 @@ namespace Git.Lfs.Test {
                 SampleArchivePointerText;
 
             Assert.AreEqual(type, pointer.Type);
-            Assert.AreEqual(SampleVersion, pointer.Version);
-            Assert.AreEqual(SampleMethod, pointer.HashMethod);
-            Assert.AreEqual(SampleHashValue, pointer.HashValue);
-            Assert.AreEqual(LfsHash.Parse(SampleHashValue), pointer.Hash);
-            Assert.AreEqual(SampleSize, pointer.Size);
+            Assert.AreEqual(Version, pointer.Version);
+            Assert.AreEqual(Method, pointer.HashMethod);
+            Assert.AreEqual(HashValue, pointer.HashValue);
+            Assert.AreEqual(LfsHash.Parse(HashValue), pointer.Hash);
+            Assert.AreEqual(Size, pointer.Size);
 
             if (type == LfsPointerType.Simple) {
                 Assert.AreEqual(null, pointer.Url);
@@ -91,13 +91,13 @@ namespace Git.Lfs.Test {
             }
 
             if (type == LfsPointerType.Curl) {
-                Assert.AreEqual(SampleUrl, pointer.Url);
+                Assert.AreEqual(Url, pointer.Url);
                 Assert.AreEqual(null, pointer.Hint);
             }
 
             if (type == LfsPointerType.Archive) {
-                Assert.AreEqual(SampleUrl, pointer.Url);
-                Assert.AreEqual(SampleHint, pointer.Hint);
+                Assert.AreEqual(Url, pointer.Url);
+                Assert.AreEqual(Hint, pointer.Hint);
             }
 
             Assert.AreEqual(
@@ -144,7 +144,7 @@ namespace Git.Lfs.Test {
         public static void LoadTest() {
 
             using (var contentFile = new TempFile()) {
-                File.WriteAllText(contentFile, LfsHashTest.SampleContent, Encoding.UTF8);
+                File.WriteAllText(contentFile, LfsHashTest.Content, Encoding.UTF8);
                 var pointer = LfsPointer.Create(contentFile);
                 TestSamplePointer(pointer, LfsPointerType.Simple);
 
@@ -169,7 +169,7 @@ namespace Git.Lfs.Test {
             var curlPointerParsed = LfsPointer.Parse(SampleCurlPointerText);
             TestSamplePointer(curlPointerParsed, LfsPointerType.Curl);
 
-            var curlPointer = pointer.AddUrl(SampleUrl);
+            var curlPointer = pointer.AddUrl(Url);
             TestSamplePointer(curlPointer, LfsPointerType.Curl);
 
             Assert.AreEqual(curlPointerParsed, curlPointer);
@@ -190,7 +190,7 @@ namespace Git.Lfs.Test {
             var archivePointerParsed = LfsPointer.Parse(SampleArchivePointerText);
             TestSamplePointer(archivePointerParsed, LfsPointerType.Archive);
 
-            var archivePointer = pointer.AddArchive(SampleUrl, SampleHint);
+            var archivePointer = pointer.AddArchive(Url, Hint);
             TestSamplePointer(archivePointer, LfsPointerType.Archive);
 
             Assert.AreEqual(archivePointerParsed, archivePointer);
