@@ -7,9 +7,28 @@ using System.Linq;
 
 namespace Git.Lfs {
 
+    public class TempCurDir : IDisposable {
+        public static implicit operator string(TempCurDir tempDir) => Environment.CurrentDirectory;
+
+        private readonly string m_origCurDir;
+
+        public TempCurDir(string dir) {
+            m_origCurDir = Environment.CurrentDirectory.ToDir();
+            var curDir = IOPath.Combine(m_origCurDir, dir).ToDir();
+            Directory.CreateDirectory(curDir);
+            Environment.CurrentDirectory = curDir;
+        }
+
+        public void Dispose() {
+            Environment.CurrentDirectory = m_origCurDir;
+        }
+
+        public override string ToString() => Environment.CurrentDirectory;
+    }
     public class TempDir : IDisposable, IEnumerable<string> {
         public static implicit operator string(TempDir tempDir) => tempDir.ToString();
 
+        private readonly TempCurDir m_tempCurDir;
         private readonly string m_tempDir;
 
         public TempDir()
@@ -17,14 +36,23 @@ namespace Git.Lfs {
         }
         public TempDir(string tempDir) {
             Directory.CreateDirectory(tempDir);
-            m_tempDir = tempDir;
-            if (!m_tempDir.EndsWith($"{IOPath.DirectorySeparatorChar}"))
-                m_tempDir += IOPath.DirectorySeparatorChar;
+            m_tempDir = tempDir.ToDir();
+            m_tempCurDir = new TempCurDir(tempDir);
         }
 
         public string Path => m_tempDir;
 
-        public void Dispose() => Directory.Delete(m_tempDir, recursive: true);
+        public void Dispose() {
+            try {
+                m_tempCurDir.Dispose();
+            } 
+            finally {
+                //Directory.Delete(m_tempDir, recursive: true);
+
+                // Directory.Delete threw "Access Denied" where rmdir worked...
+                Cmd.Execute("cmd.exe", $"/c rmdir /s/q {m_tempDir}");
+            }
+        }
 
         public IEnumerator<string> GetEnumerator() =>
             Directory.GetFiles(m_tempDir, "*", SearchOption.AllDirectories)

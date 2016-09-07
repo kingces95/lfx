@@ -7,7 +7,7 @@ using System.Linq;
 using System.Net;
 
 namespace Git.Lfs {
-    class Program {
+    public class Program {
         public const string Url = "http://192.168.0.70/lfs/";
         public const string DownloadUrl = Url + "download/";
         public const string UploadUrl = Url + "upload/";

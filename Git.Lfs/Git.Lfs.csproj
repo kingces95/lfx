@@ -53,6 +53,7 @@
   <ItemGroup>
     <Compile Include="Cache\LfsBlob.cs" />
     <Compile Include="Cache\LfsBlobStore.cs" />
+    <Compile Include="Util\Cmd.cs" />
     <Compile Include="Util\Temp.cs" />
     <Compile Include="Util\Extensions.cs" />
     <Compile Include="Config\LfsCmd.cs" />

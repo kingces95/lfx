@@ -22,7 +22,7 @@ namespace Git.Lfs {
             using (var tempFile = DownloadToTempFile(url)) {
                 var tempDir = new TempDir();
                 ZipFile.ExtractToDirectory(tempFile, tempDir);
-                return new TempDir(tempDir);
+                return tempDir;
             }
         }
 
@@ -37,6 +37,18 @@ namespace Git.Lfs {
             if (!dir.EndsWith($"{Path.DirectorySeparatorChar}"))
                 dir += Path.DirectorySeparatorChar;
             return dir;
+        }
+        public static string CopyToDir(this string file, string dir = null) {
+            if (dir == null)
+                dir = Environment.CurrentDirectory;
+
+            var target = IOPath.Combine(
+                IOPath.GetFullPath(dir),
+                IOPath.GetFileName(file)
+            );
+
+            File.Copy(file, target);
+            return target;
         }
         public static Uri ToUrl(this string value, UriKind kind = UriKind.Absolute) {
             Uri url;
