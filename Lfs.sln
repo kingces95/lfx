@@ -3,11 +3,15 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "git-lfsEx", "Git.LfsEx\git-lfsEx.csproj", "{8FF39B3F-BABE-4CD8-9CCD-43B74786DBDB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "git-lfx", "Git.LfsEx\git-lfx.csproj", "{8FF39B3F-BABE-4CD8-9CCD-43B74786DBDB}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Git.Lfs.Test", "Git.Lfs.Test\Git.Lfs.Test.csproj", "{96B028A6-8644-4D03-83EF-55088FB00D21}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Git.Lfs", "Git.Lfs\Git.Lfs.csproj", "{15008F38-1C88-422E-9D87-FEF319307DD0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Git", "Git\Git.csproj", "{AF1CF4F6-5B83-4B81-A290-EC939403055E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Git.Test", "Git.Test\Git.Test.csproj", "{87BE77E9-BDB8-4219-99B0-D6837E390114}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -27,6 +31,14 @@ Global
 		{15008F38-1C88-422E-9D87-FEF319307DD0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{15008F38-1C88-422E-9D87-FEF319307DD0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{15008F38-1C88-422E-9D87-FEF319307DD0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AF1CF4F6-5B83-4B81-A290-EC939403055E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AF1CF4F6-5B83-4B81-A290-EC939403055E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AF1CF4F6-5B83-4B81-A290-EC939403055E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AF1CF4F6-5B83-4B81-A290-EC939403055E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{87BE77E9-BDB8-4219-99B0-D6837E390114}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{87BE77E9-BDB8-4219-99B0-D6837E390114}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{87BE77E9-BDB8-4219-99B0-D6837E390114}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{87BE77E9-BDB8-4219-99B0-D6837E390114}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

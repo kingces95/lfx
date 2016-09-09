@@ -53,10 +53,7 @@
   <ItemGroup>
     <Compile Include="Cache\LfsBlob.cs" />
     <Compile Include="Cache\LfsBlobStore.cs" />
-    <Compile Include="Util\Cmd.cs" />
-    <Compile Include="Util\Temp.cs" />
-    <Compile Include="Util\Extensions.cs" />
-    <Compile Include="Config\LfsCmd.cs" />
+    <Compile Include="LfsCmd.cs" />
     <Compile Include="Config\LfsConfigFile.cs" />
     <Compile Include="Config\LfsFile.cs" />
     <Compile Include="LfsHash.cs" />
@@ -66,9 +63,16 @@
     <Compile Include="Cache\LfsBlobCache.cs" />
     <Compile Include="LfsPointer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Util\Extensions.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Git\Git.csproj">
+      <Project>{af1cf4f6-5b83-4b81-a290-ec939403055e}</Project>
+      <Name>Git</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

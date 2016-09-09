@@ -2,7 +2,13 @@
 using System.IO;
 using System.Diagnostics;
 
-namespace Git.Lfs {
+namespace Git {
+
+    [Flags]
+    public enum CmdFlags {
+        None,
+        IgnoreStandardError = 1 >> 0
+    }
 
     public sealed class Cmd {
 
@@ -26,7 +32,8 @@ namespace Git.Lfs {
             string exeName, 
             string commandLine,
             string workingDirectory = null,
-            Stream inputStream = null) {
+            Stream inputStream = null,
+            CmdFlags flags = CmdFlags.None) {
 
             var exePath = FindFileOnPath(exeName);
 
@@ -36,7 +43,8 @@ namespace Git.Lfs {
             );
 
             if (workingDirectory != null)
-                processStartInfo.WorkingDirectory = workingDirectory;
+                processStartInfo.WorkingDirectory = 
+                    Path.GetDirectoryName(workingDirectory);
 
             processStartInfo.CreateNoWindow = true;
             processStartInfo.UseShellExecute = false;
@@ -46,10 +54,13 @@ namespace Git.Lfs {
 
             var process = Process.Start(processStartInfo);
             process.WaitForExit();
+            var exitCode = process.ExitCode;
 
             var error = process.StandardError.ReadToEnd();
-            if (!string.IsNullOrEmpty(error))
-                ;// throw new Exception($"{exeName} {commandLine} > {error}");
+            if (!string.IsNullOrEmpty(error) && exitCode != 0) {
+                if ((flags & CmdFlags.IgnoreStandardError) == 0)
+                    throw new Exception($"{exeName} {commandLine} =>{Environment.NewLine}{error}");
+            }
             process.StandardError.Close();
 
             var ms = new MemoryStream();

@@ -75,6 +75,7 @@ namespace Git.Lfs {
             return TryGet(hash, out blob);
         }
         public int Count => this.Count();
+        public void Clear() => IODirectory.Delete(m_dir, recursive: true);
 
         public override string ToString() => $"{m_dir}";
 

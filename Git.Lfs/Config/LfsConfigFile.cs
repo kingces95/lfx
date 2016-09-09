@@ -1,19 +1,16 @@
 ﻿using System;
-using System.Linq;
-using System.IO;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using IOPath = System.IO.Path;
 using System.Collections;
 
 namespace Git.Lfs {
 
-    public sealed class LfsConfigFile : IEnumerable<KeyValuePair<string, string>> {
+    public sealed class LfsConfigFile : IEnumerable<GitConfigValue> {
         public const string FileName = ".lfsconfig";
-        public const string UrlId = "lfsEx.url";
-        public const string RegexId = "lfsEx.regex";
-        public const string TypeId = "lfsEx.type";
-        public const string HintId = "lfsEx.hint";
+        public const string UrlId = "lfx.url";
+        public const string RegexId = "lfx.regex";
+        public const string TypeId = "lfx.type";
+        public const string HintId = "lfx.hint";
 
         private readonly LfsLoader m_loader;
         private readonly string m_path;
@@ -26,7 +23,7 @@ namespace Git.Lfs {
 
             m_loader = loader;
             m_path = path;
-            m_config = new GitConfigFile(path);
+            m_config = GitConfigFile.Create(path);
             m_directory = IOPath.GetDirectoryName(path) + IOPath.DirectorySeparatorChar;
 
             if (Type == LfsPointerType.Archive || Type == LfsPointerType.Curl) {
@@ -47,51 +44,9 @@ namespace Git.Lfs {
             Enum.Parse(typeof(LfsPointerType), m_config[TypeId], ignoreCase: true);
         public string Hint => m_config[HintId];
 
-        public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => m_config.GetEnumerator();
+        public IEnumerator<GitConfigValue> GetEnumerator() => m_config.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         public override string ToString() => m_config.ToString();
-    }
-
-    public sealed class GitConfigFile : IEnumerable<KeyValuePair<string, string>> {
-        private const string ConfigRegexName = "name";
-        private const string ConfigRegexValue = "value";
-        private static readonly string ConfigRegex =
-            $"(?<{ConfigRegexName}>[^=]*)=(?<{ConfigRegexValue}>.*)";
-
-        private string m_path;
-        private Dictionary<string, string> m_config;
-
-        public GitConfigFile(string path) {
-            m_path = path;
-
-            var sr = Cmd.Execute("git.exe", $"config -l -f {path}");
-            m_config = new Dictionary<string, string>(
-                StringComparer.InvariantCultureIgnoreCase);
-
-            while (true) {
-                var line = sr.ReadLine();
-                if (line == null)
-                    break;
-
-                var match = Regex.Match(line, ConfigRegex, RegexOptions.IgnoreCase);
-                var name = match.Groups[ConfigRegexName].Value;
-                var value = match.Groups[ConfigRegexValue].Value;
-                m_config[name] = value;
-            }
-        }
-
-        public string this[string key] {
-            get {
-                string value;
-                m_config.TryGetValue(key, out value);
-                return value;
-            }
-        }
-
-        public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => m_config.GetEnumerator();
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-        public override string ToString() => m_path;
     }
 }

@@ -7,9 +7,13 @@ using System.Linq;
 namespace Git.Lfs {
 
     public sealed class LfsBlobCache : IEnumerable<LfsBlob> {
-        public static readonly string DefaultUserCacheDir =
-            Environment.GetEnvironmentVariable("APPDATA") +
-                Path.DirectorySeparatorChar + "lfsEx";
+        public const string ObjectsDirName = @"objects";
+
+        public static readonly string DefaultUserCacheDir = Path.Combine(
+            Environment.GetEnvironmentVariable("APPDATA"),
+            LfsLoader.LfsDirName,
+            ObjectsDirName
+        ).ToDir();
 
         public static LfsBlobCache Create(params string[] cacheDirs) {
             if (cacheDirs == null || cacheDirs.Length == 0)

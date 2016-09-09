@@ -1,10 +1,10 @@
-﻿using Git.Lfs;
+﻿using Git.Lfs.Test;
 using NUnit.Framework;
 using System;
 using System.IO;
 using System.Linq;
 
-namespace Git.Lfs.Test {
+namespace Git.Lfs.Live.Test {
 
     [TestFixture]
     public class LfsCurlBlobCacheTest : LfsBlobCacheTest {
@@ -123,7 +123,7 @@ namespace Git.Lfs.Test {
                         Assert.AreEqual(count, cache.Store.Count);
                         Assert.AreEqual(1, altCache.Store.Count);
 
-                        // child cache is subset of parent
+                        // load altPointer; child cache is subset of parent
                         altBlob = altCache.Load(altPointer);
                         Assert.IsTrue(altCache.Store.Count > 1);
 

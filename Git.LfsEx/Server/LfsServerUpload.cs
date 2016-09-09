@@ -2,7 +2,7 @@
 using System.Net;
 using System.IO;
 
-namespace Git.Lfs {
+namespace Lfx {
 
     public class LfsServerUpload {
 

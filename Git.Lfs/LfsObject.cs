@@ -20,6 +20,7 @@ namespace Git.Lfs {
         public LfsBlob Blob => m_blob;
         public LfsHash Hash => m_blob.Hash;
         public string Path => m_blob.Path;
+        public Stream OpenRead() => File.OpenRead(Path);
 
         public override string ToString() => Path;
     }

@@ -5,30 +5,17 @@ using IODirectory = System.IO.Directory;
 
 namespace Git.Lfs {
 
-    public sealed class GitLoader {
-        public const string GitDirName = ".git";
-
-        public static GitLoader Create(string workingDir = null) {
-            workingDir = workingDir ?? Environment.CurrentDirectory.ToDir();
-            var gitDir = workingDir.FindFileAbove(GitDirName, directory: true);
-            if (gitDir == null)
-                return null;
-
-            return new GitLoader(gitDir);
-        }
-
-        private readonly string m_gitDir;
-
-        private GitLoader(string gitDir) {
-            m_gitDir = gitDir;
-        }
-
-        public string Directory => m_gitDir;
-        public string RootDirectory => IODirectory.GetParent(Directory).ToString();
-    }
-
     public sealed class LfsLoader {
+        public const string LfsDirName = @"lfs";
 
+        public static LfsLoader Create(GitLoader gitLoader) {
+            var lfsDir = gitLoader.GitDir + LfsDirName.ToDir();
+            var objectsDir = lfsDir + LfsBlobCache.ObjectsDirName.ToDir();
+            var globalCache = LfsBlobCache.DefaultUserCacheDir;
+            var cache = LfsBlobCache.Create(objectsDir, globalCache);
+            var loader = Create(cache);
+            return loader;
+        }
         public static LfsLoader Create(LfsBlobCache cache = null) {
             return new LfsLoader(cache);
         }

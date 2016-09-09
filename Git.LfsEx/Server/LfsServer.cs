@@ -5,7 +5,7 @@ using System.IO;
 using Newtonsoft.Json;
 using Git.Lfs.Json;
 
-namespace Git.Lfs {
+namespace Lfx {
 
     public class LfsServer {
         public string m_url;

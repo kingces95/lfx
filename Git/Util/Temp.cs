@@ -11,19 +11,20 @@ namespace Git.Lfs {
         public static implicit operator string(TempCurDir tempDir) => Environment.CurrentDirectory;
 
         private readonly string m_origCurDir;
+        private readonly string m_dir;
 
         public TempCurDir(string dir) {
             m_origCurDir = Environment.CurrentDirectory.ToDir();
-            var curDir = IOPath.Combine(m_origCurDir, dir).ToDir();
-            Directory.CreateDirectory(curDir);
-            Environment.CurrentDirectory = curDir;
+            m_dir = IOPath.Combine(m_origCurDir, dir).ToDir();
+            Directory.CreateDirectory(m_dir);
+            Environment.CurrentDirectory = m_dir;
         }
 
         public void Dispose() {
             Environment.CurrentDirectory = m_origCurDir;
         }
 
-        public override string ToString() => Environment.CurrentDirectory;
+        public override string ToString() => m_dir;
     }
     public class TempDir : IDisposable, IEnumerable<string> {
         public static implicit operator string(TempDir tempDir) => tempDir.ToString();

@@ -3,7 +3,7 @@ using System.Net;
 using System.Threading;
 using System.Text;
 
-namespace Git.Lfs {
+namespace Lfx {
     public class WebServer {
         private readonly HttpListener m_listener = new HttpListener();
         private readonly Func<HttpListenerRequest, object> m_responderMethod;

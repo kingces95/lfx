@@ -12,7 +12,7 @@ namespace Git.Lfs.Test {
         public static readonly string Regex = @"^((?<id>.*?)[.])(?=\\d)(?<ver>[^/]*)/(?<path>.*)$";
         public static readonly string Hint = "${path}";
         public static readonly string ConfigFileContent =
-            $"[lfsEx]{Nl}" +
+            $"[lfx]{Nl}" +
             $"{Tab}type = archive{Nl}" +
             $"{Tab}url = {Url}{Nl}" +
             $"{Tab}hint = {Hint}{Nl}" +
@@ -53,7 +53,7 @@ namespace Git.Lfs.Test {
         public static readonly string Url = "https://dist.nuget.org/win-x86-commandline/v3.4.4/${file}";
         public static readonly string Regex = @"^(.*/)?(?<file>.*)$";
         public static readonly string ConfigFileContent =
-            $"[lfsEx]{Nl}" +
+            $"[lfx]{Nl}" +
             $"{Tab}type = curl{Nl}" +
             $"{Tab}url = {Url}{Nl}" +
             $"{Tab}regex = {Regex}{Nl}" +

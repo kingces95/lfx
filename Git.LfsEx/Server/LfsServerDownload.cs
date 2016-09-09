@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Git.Lfs {
+namespace Lfx {
 
     public class LfsServerDownload {
         private Dictionary<string, string> m_filesByHash;

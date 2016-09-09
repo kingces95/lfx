@@ -4,15 +4,17 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{96B028A6-8644-4D03-83EF-55088FB00D21}</ProjectGuid>
-    <OutputType>Library</OutputType>
+    <ProjectGuid>{8FF39B3F-BABE-4CD8-9CCD-43B74786DBDB}</ProjectGuid>
+    <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Git.Lfs.Test</RootNamespace>
-    <AssemblyName>Git.Lfs.Test</AssemblyName>
+    <RootNamespace>Git.Lfs</RootNamespace>
+    <AssemblyName>git-lfx</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -22,6 +24,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
@@ -30,9 +33,12 @@
     <WarningLevel>4</WarningLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
+  <PropertyGroup>
+    <RunPostBuildEvent>Always</RunPostBuildEvent>
+  </PropertyGroup>
   <ItemGroup>
-    <Reference Include="nunit.framework, Version=3.4.1.0, Culture=neutral, PublicKeyToken=2638cd05610744eb, processorArchitecture=MSIL">
-      <HintPath>..\packages\NUnit.3.4.1\lib\net45\nunit.framework.dll</HintPath>
+    <Reference Include="Newtonsoft.Json, Version=9.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.9.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
@@ -42,6 +48,7 @@
     </Reference>
     <Reference Include="System.Core" />
     <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -50,17 +57,17 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="LfsEndToEndTest.cs" />
-    <Compile Include="LfsBlobCacheTest.cs" />
-    <Compile Include="LfsBlobStoreTest.cs" />
-    <Compile Include="LfsConfigFileTest.cs" />
-    <Compile Include="LfsTest.cs" />
-    <Compile Include="LfsFileTest.cs" />
-    <Compile Include="LfsHashTest.cs" />
-    <Compile Include="LfsPointerTest.cs" />
+    <None Include="Server\response.json" />
+    <Compile Include="LfxCmd.cs" />
+    <Compile Include="Server\LfsServerUpload.cs" />
+    <Compile Include="Server\LfsServerDownload.cs" />
+    <Compile Include="Server\LfsServer.cs" />
+    <Compile Include="Server\WebServer.cs" />
+    <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="App.config" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
@@ -68,16 +75,16 @@
       <Project>{15008f38-1c88-422e-9d87-fef319307dd0}</Project>
       <Name>Git.Lfs</Name>
     </ProjectReference>
-    <ProjectReference Include="..\Git.LfsEx\git-lfx.csproj">
-      <Project>{8ff39b3f-babe-4cd8-9ccd-43b74786dbdb}</Project>
-      <Name>git-lfx</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Git\Git.csproj">
       <Project>{af1cf4f6-5b83-4b81-a290-ec939403055e}</Project>
       <Name>Git</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PreBuildEvent>
+    </PreBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
