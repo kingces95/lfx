@@ -27,7 +27,7 @@ namespace Git.Lfs.Live.Test {
         public const string lfx = "lfx";
         public static readonly string NugetGitAttributes = 
             $"*/** filter={lfx} diff={lfx} merge={lfx} -text" + Nl +
-            $".lfsconfig eol=lf";
+            $"{LfsConfigFile.FileName} eol=lf";
         public static readonly string NugetGitIgnore = "*.nupkg";
         public static readonly string NugetType = "archive";
         public static readonly string NugetUrl = @"http://nuget.org/api/v2/package/${id}/${ver}";
@@ -45,19 +45,6 @@ namespace Git.Lfs.Live.Test {
                 //    new XAttribute(XVersion, "2.6.4")
                 //)
             );
-
-        private static string Mkdir(params string[] segments) {
-            var dir = Path.Combine(segments);
-            Directory.CreateDirectory(dir);
-            return dir;
-        }
-        private static void Cmd(string exe, params string[] arguments) {
-            Console.WriteLine($"{Path.GetFullPath(Environment.CurrentDirectory)}> {exe} {string.Join(" ", arguments)}");
-            var sr = global::Git.Cmd.Execute(exe, arguments);
-            Console.WriteLine(sr.ReadToEnd());
-        }
-        private static void Git(string arguments) => GitCmd.Execute(arguments);
-        private static void Nuget(string arguments) => Cmd("nuget.exe", arguments);
 
         [Test]
         public static void Test() {
@@ -90,7 +77,7 @@ namespace Git.Lfs.Live.Test {
                     Git($"remote add origin ..\\{RemoteDirName}");
 
                     Git($"config --add filter.lfx.clean \"git-lfx clean %f\"");
-                    Git($"config --add filter.lfx.smudge \"git-lfx smudge %f --\"");
+                    Git($"config --add filter.lfx.smudge \"git-lfx smudge --\"");
                     Git($"config --get-regex .*lfs.*");
 
                     PackagesConfig.Save("packages.config");
@@ -99,13 +86,13 @@ namespace Git.Lfs.Live.Test {
                         File.WriteAllText(GitAttributes, NugetGitAttributes);
                         File.WriteAllText(GitIgnore, NugetGitIgnore);
 
-                        var gitConfig = GitLoader.Create();
-                        Assert.AreEqual(env.ToString(), gitConfig.EnlistmentDir);
+                        var gitConfig = GitConfig.Load();
+                        Assert.AreEqual(env.ToString(), gitConfig.EnlistmentDirectory);
 
                         Git($"config -f {LfsConfig} --add {LfsConfigFile.TypeId} {NugetType}");
                         Git($"config -f {LfsConfig} --add {LfsConfigFile.UrlId} {NugetUrl}");
-                        Git($"config -f {LfsConfig} --add {LfsConfigFile.RegexId} {NugetRegex}");
-                        Git($"config -f {LfsConfig} --add {LfsConfigFile.HintId} {NugetHint}");
+                        Git($"config -f {LfsConfig} --add {LfsConfigFile.PatternId} {NugetRegex}");
+                        Git($"config -f {LfsConfig} --add {LfsConfigFile.ArchiveHintId} {NugetHint}");
 
                         Console.WriteLine($"{LfsConfig}: {Path.GetFullPath(LfsConfig)}:");
                         Console.WriteLine(File.ReadAllText(LfsConfig));

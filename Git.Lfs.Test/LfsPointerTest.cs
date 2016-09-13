@@ -54,7 +54,7 @@ namespace Git.Lfs.Test {
 
             return string.Join("\n", new object[] {
                 $"version {version}",
-                hint != null ? $"hint {hint}" : null,
+                hint != null ? $"archiveHint {hint}" : null,
                 $"oid {hashMethod}:{hashValue}",
                 $"size {size}",
                 type != null ? $"type {type}" : null,
@@ -71,7 +71,7 @@ namespace Git.Lfs.Test {
         public static readonly int Size = LfsHashTest.Content.Length + ByteOrderMarkLength;
         public static readonly int OtherSize = 123120;
         public static readonly Uri Url = @"http://file.server.com/foo/bar.file".ToUrl();
-        public static readonly string Hint = "/foo/bar";
+        public static readonly string ArchiveHint = "/foo/bar";
 
         public static readonly string OtherPointerText =
             CreatePointerText(Version, Method, HashValue, OtherSize);
@@ -85,7 +85,7 @@ namespace Git.Lfs.Test {
 
         public static readonly string ArchivePointerText =
             CreatePointerText(Version, Method, HashValue, Size,
-                LfsPointerType.Archive, Url, Hint);
+                LfsPointerType.Archive, Url, ArchiveHint);
 
         public static void TestSamplePointer(LfsPointer pointer, LfsPointerType type) {
 
@@ -102,17 +102,17 @@ namespace Git.Lfs.Test {
 
             if (type == LfsPointerType.Simple) {
                 Assert.AreEqual(null, pointer.Url);
-                Assert.AreEqual(null, pointer.Hint);
+                Assert.AreEqual(null, pointer.ArchiveHint);
             }
 
             if (type == LfsPointerType.Curl) {
                 Assert.AreEqual(Url, pointer.Url);
-                Assert.AreEqual(null, pointer.Hint);
+                Assert.AreEqual(null, pointer.ArchiveHint);
             }
 
             if (type == LfsPointerType.Archive) {
                 Assert.AreEqual(Url, pointer.Url);
-                Assert.AreEqual(Hint, pointer.Hint);
+                Assert.AreEqual(ArchiveHint, pointer.ArchiveHint);
             }
 
             Assert.AreEqual(
@@ -205,7 +205,7 @@ namespace Git.Lfs.Test {
             var archivePointerParsed = LfsPointer.Parse(ArchivePointerText);
             TestSamplePointer(archivePointerParsed, LfsPointerType.Archive);
 
-            var archivePointer = pointer.AddArchive(Url, Hint);
+            var archivePointer = pointer.AddArchive(Url, ArchiveHint);
             TestSamplePointer(archivePointer, LfsPointerType.Archive);
 
             Assert.AreEqual(archivePointerParsed, archivePointer);

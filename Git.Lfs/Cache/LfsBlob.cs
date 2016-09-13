@@ -21,6 +21,7 @@ namespace Git.Lfs {
         public LfsBlobStore Store => m_store;
         public LfsHash Hash => m_hash;
         public string Path => m_file.ToString();
+        public Stream OpenRead() => File.OpenRead(Path);
 
         public override bool Equals(object obj) => obj is LfsBlob ? Equals((LfsBlob)obj) : false;
         public bool Equals(LfsBlob other) => m_file.EqualPath(other.m_file);

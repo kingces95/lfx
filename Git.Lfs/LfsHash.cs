@@ -15,25 +15,27 @@ namespace Git.Lfs {
 
         public static LfsHash Compute(string value, Encoding encoding) {
             var ms = new MemoryStream();
-            var sw = new StreamWriter(ms, Encoding.UTF8);
-            sw.Write(value);
-            sw.Flush();
+            {
+                var sw = new StreamWriter(ms, Encoding.UTF8);
+                sw.Write(value);
+                sw.Flush();
+            }
+            ms.Capacity = (int)ms.Position;
+            ms.Position = 0;
 
-            return Compute(ms.GetBuffer(), (int)ms.Position);
+            return Compute(ms);
         }
         public static LfsHash Compute(string path) {
             using (var file = File.OpenRead(path))
                 return Compute(file);
         }
-        public static LfsHash Compute(Stream stream) {
-            var ms = new MemoryStream();
-            stream.CopyTo(ms);
-            return Compute(ms.GetBuffer(), (int)ms.Position);
-        }
         public static LfsHash Compute(byte[] bytes, int? count = null) {
             if (count == null)
                 count = bytes.Length;
-            return new LfsHash(SHA256.Create().ComputeHash(bytes, 0, (int)count));
+            return Compute(new MemoryStream(bytes, 0, (int)count));
+        }
+        public static LfsHash Compute(Stream stream) {
+            return new LfsHash(SHA256.Create().ComputeHash(stream));
         }
 
         public static LfsHash Parse(string value) {

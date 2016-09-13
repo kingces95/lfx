@@ -152,7 +152,7 @@ namespace Git.Test {
         [Test]
         public static void ThrowsNoSwitchName() {
             Throws(() => GitCmdArgs.Parse($"{ExeName} -"));
-            Throws(() => GitCmdArgs.Parse($"{ExeName} --"));
+            GitCmdArgs.Parse($"{ExeName} --");
         }
 
         [Test]

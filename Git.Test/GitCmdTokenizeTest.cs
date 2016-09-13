@@ -16,7 +16,10 @@ namespace Git.Test {
         [Test]
         public static void SimpleLiteralTest() {
 
-            var token = GitCmdToken.Tokenize("a").Single();
+            var tokens = GitCmdTokens.Tokenize("a");
+            Assert.AreEqual(2, tokens.Count());
+
+            var token = tokens.First();
             Assert.AreEqual(GitCmdTokenType.Literal, token.Type);
             Assert.AreEqual("a", token.Value);
             Assert.AreEqual(0, token.Position);
@@ -29,7 +32,7 @@ namespace Git.Test {
         [Test]
         public static void AllTokensTest() {
 
-            var tokens = GitCmdToken.Tokenize("a - -- \"b\"");
+            var tokens = GitCmdTokens.Tokenize("a - -- \"b\"");
             GitCmdToken token;
             
             token = tokens.Dequeue();
@@ -56,7 +59,10 @@ namespace Git.Test {
         [Test]
         public static void QuotedLiteralTest() {
 
-            var token = GitCmdToken.Tokenize("\"a b c\"").Single();
+            var tokens = GitCmdTokens.Tokenize("\"a b c\"");
+            Assert.AreEqual(2, tokens.Count());
+
+            var token = GitCmdTokens.Tokenize("\"a b c\"").First();
             Assert.AreEqual(GitCmdTokenType.Literal, token.Type);
             Assert.AreEqual("a b c", token.Value);
             Assert.AreEqual(0, token.Position);
@@ -65,7 +71,10 @@ namespace Git.Test {
         [Test]
         public static void ConcatQuotedLiteralTest() {
 
-            var token = GitCmdToken.Tokenize("ab\"cd\"ef\"gh\"ij").Single();
+            var tokens = GitCmdTokens.Tokenize("ab\"cd\"ef\"gh\"ij");
+            Assert.AreEqual(2, tokens.Count());
+
+            var token = GitCmdTokens.Tokenize("ab\"cd\"ef\"gh\"ij").First();
             Assert.AreEqual(GitCmdTokenType.Literal, token.Type);
             Assert.AreEqual("abcdefghij", token.Value);
             Assert.AreEqual(0, token.Position);
@@ -76,7 +85,10 @@ namespace Git.Test {
 
             var bs = "\\";
             var qu = "\"";
-            var token = GitCmdToken.Tokenize($"{qu}{bs}{qu}{qu}").Single();
+            var tokens = GitCmdTokens.Tokenize($"{qu}{bs}{qu}{qu}");
+            Assert.AreEqual(2, tokens.Count());
+
+            var token = tokens.First();
             Assert.AreEqual(GitCmdTokenType.Literal, token.Type);
             Assert.AreEqual($"{qu}", token.Value);
             Assert.AreEqual(0, token.Position);
@@ -85,8 +97,7 @@ namespace Git.Test {
         [Test]
         public static void ThrowsTest() {
 
-            Throws(() => GitCmdToken.Tokenize("\""));
-            Throws(() => GitCmdToken.Tokenize("\\f"));
+            Throws(() => GitCmdTokens.Tokenize("\""));
         }
     }
 }

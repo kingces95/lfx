@@ -42,11 +42,12 @@
   <ItemGroup>
     <Compile Include="GitCmdArgs.cs" />
     <Compile Include="GitCmdToken.cs" />
+    <Compile Include="GitConfig.cs" />
+    <Compile Include="GitConfigValue.cs" />
     <Compile Include="GitConfigFile.cs" />
     <Compile Include="GitCmd.cs" />
-    <Compile Include="GitLoader.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Util\Cmd.cs" />
+    <Compile Include="Util\CmdProcess.cs" />
     <Compile Include="Util\Extensions.cs" />
     <Compile Include="Util\Temp.cs" />
   </ItemGroup>

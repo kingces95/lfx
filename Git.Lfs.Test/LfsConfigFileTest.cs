@@ -15,8 +15,8 @@ namespace Git.Lfs.Test {
             $"[lfx]{Nl}" +
             $"{Tab}type = archive{Nl}" +
             $"{Tab}url = {Url}{Nl}" +
-            $"{Tab}hint = {Hint}{Nl}" +
-            $"{Tab}regex = {Regex}{Nl}" +
+            $"{Tab}archiveHint = {Hint}{Nl}" +
+            $"{Tab}pattern = {Regex}{Nl}" +
             $"{Nl}";
 
         [Test]
@@ -28,21 +28,16 @@ namespace Git.Lfs.Test {
                 File.WriteAllText(configFilePath, ConfigFileContent);
 
                 // load config file
-                var loader = LfsLoader.Create();
-                var configFile = loader.GetConfigFile(configFilePath);
+                var configFile = LfsConfigFile.Load(configFilePath);
 
                 // print keys
-                foreach (var config in configFile)
-                    Console.WriteLine($"{config.Key}: {config.Value}");
+                foreach (var configValue in configFile)
+                    Console.WriteLine($"{configValue.Key}: {configValue.Value}");
 
                 Assert.AreEqual(configFilePath.ToString(), configFile.Path);
-                Assert.AreEqual(
-                    Path.GetDirectoryName(configFilePath) + Path.DirectorySeparatorChar, 
-                    configFile.Directory
-                );
                 Assert.AreEqual(LfsPointerType.Archive, configFile.Type);
                 Assert.AreEqual(Url, configFile.Url);
-                Assert.AreEqual(Hint, configFile.Hint);
+                Assert.AreEqual(Hint, configFile.ArchiveHint);
             }
         }
     }
@@ -56,7 +51,7 @@ namespace Git.Lfs.Test {
             $"[lfx]{Nl}" +
             $"{Tab}type = curl{Nl}" +
             $"{Tab}url = {Url}{Nl}" +
-            $"{Tab}regex = {Regex}{Nl}" +
+            $"{Tab}pattern = {Regex}{Nl}" +
             $"{Nl}";
 
         [Test]
@@ -65,17 +60,12 @@ namespace Git.Lfs.Test {
                 var configFilePath = tempDir + LfsConfigFile.FileName;
                 File.WriteAllText(configFilePath, ConfigFileContent);
 
-                var loader = LfsLoader.Create();
-                var configFile = loader.GetConfigFile(configFilePath);
+                var configFile = LfsConfigFile.Load(configFilePath);
 
-                foreach (var config in configFile)
-                    Console.WriteLine($"{config.Key}: {config.Value}");
+                foreach (var configValue in configFile)
+                    Console.WriteLine($"{configValue.Key}: {configValue.Value}");
 
                 Assert.AreEqual(configFilePath.ToString(), configFile.Path);
-                Assert.AreEqual(
-                    Path.GetDirectoryName(configFilePath) + Path.DirectorySeparatorChar,
-                    configFile.Directory
-                );
                 Assert.AreEqual(LfsPointerType.Curl, configFile.Type);
                 Assert.AreEqual(Url, configFile.Url);
             }

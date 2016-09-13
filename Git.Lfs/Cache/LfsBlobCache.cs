@@ -7,13 +7,34 @@ using System.Linq;
 namespace Git.Lfs {
 
     public sealed class LfsBlobCache : IEnumerable<LfsBlob> {
+        public const string LfsDirName = @"lfs";
         public const string ObjectsDirName = @"objects";
 
         public static readonly string DefaultUserCacheDir = Path.Combine(
             Environment.GetEnvironmentVariable("APPDATA"),
-            LfsLoader.LfsDirName,
+            LfsDirName,
             ObjectsDirName
         ).ToDir();
+
+        public static LfsBlobCache Create(string workingDir = null) {
+            if (workingDir == null)
+                workingDir = Environment.CurrentDirectory;
+            workingDir = workingDir.ToDir();
+
+            var gitLoader = GitConfig.Load(workingDir);
+
+            // lfsDir -> /.git/lfs/
+            var lfsDir = gitLoader.GitDirectory + LfsDirName.ToDir();
+
+            // objectsDir -> /.git/lfs/objects/
+            var objectsDir = lfsDir + LfsBlobCache.ObjectsDirName.ToDir();
+
+            var cache = Create(
+                objectsDir, // L1 cache
+                DefaultUserCacheDir // L2 cache
+            );
+            return cache;
+        }
 
         public static LfsBlobCache Create(params string[] cacheDirs) {
             if (cacheDirs == null || cacheDirs.Length == 0)

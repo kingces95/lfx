@@ -26,7 +26,7 @@ namespace Git.Lfs
         private const string SizeKey = "size";
         private const string UrlKey = "url";
         private const string TypeKey = "type";
-        private const string HintKey = "hint";
+        private const string ArchiveHintKey = "archiveHint";
         private const string OidHashMethodSha256 = "sha256";
 
         public static LfsPointer Parse(TextReader stream) => Parse(stream.ReadToEnd());
@@ -68,22 +68,55 @@ namespace Git.Lfs
         public static LfsPointer Load(string path) => Parse(File.ReadAllText(path));
 
         public static LfsPointer Create(string path) {
+            LfsPointer pointer;
             using (var file = File.OpenRead(path))
-                return Create(file);
-        }
-        public static LfsPointer Create(Stream stream) {
-            var ms = new MemoryStream();
-            stream.CopyTo(ms);
-            return Create(ms.GetBuffer(), (int)ms.Position);
+                pointer = Create(file);
+
+            var config = LfsConfig.Load(path);
+
+            // simple
+            if (config.Type == LfsPointerType.Simple)
+                return pointer;
+
+            var url = config.Url;
+            var relPath = string.Empty;
+            if (config.HasPattern) {
+                relPath = config.Pattern.ConfigFile.Path.GetDir().ToUrl().MakeRelativeUri(path.ToUrl()).ToString();
+                url = Regex.Replace(
+                    input: relPath,
+                    pattern: config.Pattern,
+                    replacement: config.Url
+                );
+            }
+
+            // curl
+            if (config.Type == LfsPointerType.Curl)
+                return pointer.AddUrl(url.ToUrl());
+
+            var archiveHint = config.ArchiveHint.Value;
+            if (config.HasPattern) {
+                archiveHint = Regex.Replace(
+                    input: relPath,
+                    pattern: config.Pattern,
+                    replacement: config.ArchiveHint
+                );
+            }
+
+            // archive
+            return pointer.AddArchive(url.ToUrl(), archiveHint);
         }
         public static LfsPointer Create(byte[] bytes, int? count = null) {
-            if (count == null)
-                count = bytes.Length;
+            return Create(new MemoryStream(bytes, 0, count ?? bytes.Length));
+        }
+        public static LfsPointer Create(Stream stream) {
+            stream = new StreamCounter(stream);
+            var hash = LfsHash.Compute(stream);
+            var count = stream.Position;
 
             var pointer = new LfsPointer();
             pointer.Add(VersionKey, Version1Uri.ToString());
             pointer.Add(SizeKey, $"{count}");
-            pointer.Add(OidKey, $"{OidHashMethodSha256}:{bytes.ComputeHash((int)count)}");
+            pointer.Add(OidKey, $"{OidHashMethodSha256}:{hash}");
             return pointer;
         }
         private static void Verify(string key, string value) {
@@ -102,7 +135,7 @@ namespace Git.Lfs
 
         private const string EndOfLine = "\n";
         private const string EndOfPointer = EndOfLine;
-        private const string KeyRegex = "^([a-z|0-9|.|-])*$";
+        private const string KeyRegex = "^([a-z|A-Z|0-9|.|-])*$";
         private const string ValueRegex = "^([^\n\r])*$";
         private static readonly Dictionary<string, string> KnownKeyRegex =
             new Dictionary<string, string>() {
@@ -145,7 +178,7 @@ namespace Git.Lfs
             Enum.Parse(typeof(LfsHashMethod), Oid.Substring(0, Oid.IndexOf(":")), ignoreCase: true);
         public Uri Version => this[VersionKey].ToUrl(); 
         public Uri Url => this[UrlKey] == null ? null : this[UrlKey].ToUrl();
-        public string Hint => this[HintKey];
+        public string ArchiveHint => this[ArchiveHintKey];
 
         public LfsPointer AddUrl(Uri url) {
 
@@ -156,15 +189,13 @@ namespace Git.Lfs
             pointer.Add(UrlKey, $"{url}");
             return pointer;
         }
-        public LfsPointer AddArchive(
-            Uri url,
-            string hint) {
+        public LfsPointer AddArchive(Uri url, string hint) {
 
             if (Type != LfsPointerType.Simple)
                 throw new InvalidOperationException();
 
             var pointer = new LfsPointer(LfsPointerType.Archive, Pairs);
-            pointer.Add(HintKey, $"{hint}");
+            pointer.Add(ArchiveHintKey, $"{hint}");
             pointer.Add(UrlKey, $"{url}");
             return pointer;
         }

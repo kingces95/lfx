@@ -22,6 +22,9 @@ namespace Git {
                 dir += Path.DirectorySeparatorChar;
             return dir;
         }
+        public static string GetDir(this string dir) {
+            return IOPath.GetDirectoryName(dir).ToDir();
+        }
         public static string CopyToDir(this string file, string dir = null) {
             if (dir == null)
                 dir = Environment.CurrentDirectory;
@@ -40,23 +43,35 @@ namespace Git {
                 throw new Exception($"Expected '{value}' to be '{kind}' url.");
             return url;
         }
-        public static string ToParentDir(this string dir) {
-            dir = dir.ToDir();
-            dir = Directory.GetParent(dir).ToString();
-            dir = Directory.GetParent(dir).ToString();
-            return dir.ToString().ToDir();
+        public static string GetParentDir(this string dir) {
+            return Directory.GetParent(dir.GetDir()).ToString().GetDir();
+        }
+        public static bool IsDir(this string path) {
+            return path.EndsWith($"{IOPath.DirectorySeparatorChar}");
         }
 
-        public static string FindFileAbove(this string path, string fileName, bool directory = false) {
+        public static V GetValueOrDefault<K, V>(this Dictionary<K, V> source, K key) {
+            V value;
+            if (!source.TryGetValue(key, out value))
+                return default(V);
+            return value;
+        }
+
+        public static string FindFileAbove(
+            this string path, string fileName, bool directory = false) {
             return path.FindFilesAbove(fileName, directory).FirstOrDefault();
         }
-        public static IEnumerable<string> FindFilesAbove(this string path, string searchPattern, bool directories = false) {
+        public static IEnumerable<string> FindFilesAbove(
+            this string path, string searchPattern, bool directories = false) {
             return new DirectoryInfo(IOPath.GetDirectoryName(path)).FindFilesAbove(searchPattern, directories);
         }
         private static IEnumerable<string> FindFilesAbove(
             this DirectoryInfo dir, string searchPattern, bool directories) {
 
             if (dir == null)
+                yield break;
+
+            if (searchPattern == null)
                 yield break;
 
             while (dir != null) {

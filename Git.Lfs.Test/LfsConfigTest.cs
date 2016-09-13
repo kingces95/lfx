@@ -6,63 +6,69 @@ using System.IO;
 namespace Git.Lfs.Test {
 
     [TestFixture]
-    public static class LfsFileTest
+    public static class LfsConfigTest
     {
         [Test]
         public static void ArchiveLoadTest() {
             using (var dir = new TempDir()) {
+
+                // write archive config file
                 var configFilePath = dir + LfsConfigFile.FileName;
                 File.WriteAllText(configFilePath, LfsArchiveConfigTest.ConfigFileContent);
 
+                // crate /NUnit.2.6.4
                 var nunitDir = Path.Combine(dir, "NUnit.2.6.4");
                 Directory.CreateDirectory(nunitDir);
 
-                var licenseName = "License.txt";
-                var lfsFilePath = Path.Combine(nunitDir, licenseName);
-                File.WriteAllText(lfsFilePath, LfsPointerTest.Content);
-
+                // create /NUnit.2.6.4/lib/
                 var libDirName = @"lib";
                 var libDir = Path.Combine(nunitDir, libDirName);
                 Directory.CreateDirectory(libDir);
 
+                // write dummy content to /NUnit.2.6.4/lib/NUnit.dll
                 var dllName = "NUnit.dll";
                 var subPath = Path.Combine(libDirName, dllName);
-                var lfsSubFilePath = Path.Combine(nunitDir, subPath);
-                File.WriteAllText(lfsSubFilePath, LfsPointerTest.Content);
+                var nunitDllPath = Path.Combine(nunitDir, subPath);
+                File.WriteAllText(nunitDllPath, LfsPointerTest.Content);
 
-                var loader = LfsLoader.Create();
-                var lfsConfigFile = loader.GetConfigFile(configFilePath);
-                var lfsFile = loader.GetFile(lfsFilePath);
-                var lfsSubFile = loader.GetFile(lfsSubFilePath);
+                // load file
+                var pointer = LfsPointer.Create(nunitDllPath);
 
-                Assert.AreEqual(lfsConfigFile, lfsFile.ConfigFile);
-                Assert.AreEqual(licenseName, lfsFile.Hint);
-
-                Assert.AreEqual(lfsConfigFile, lfsSubFile.ConfigFile);
-                Assert.AreEqual(subPath.Replace(@"\","/"), lfsSubFile.Hint);
+                // check regex expansions
+                Assert.AreEqual(LfsPointerType.Archive, pointer.Type);
+                Assert.AreEqual(
+                    "http://nuget.org/api/v2/package/NUnit/2.6.4", 
+                    pointer.Url.ToString()
+                );
+                Assert.AreEqual(subPath.Replace(@"\","/"), pointer.ArchiveHint);
             }
         }
 
         [Test]
         public static void CurlLoadTest() {
             using (var dir = new TempDir()) {
+
+                // write curl config file
                 var configFilePath = dir + LfsConfigFile.FileName;
                 File.WriteAllText(configFilePath, LfsCurlConfigTest.ConfigFileContent);
 
+                // create /tools/nuget/
                 var nugetDir = Path.Combine(dir, "tools", "nuget");
                 Directory.CreateDirectory(nugetDir);
 
+                // write dummy content to /tools/nuget/nuget.exe
                 var lfsFilePath = Path.Combine(nugetDir, "nuget.exe");
                 File.WriteAllText(lfsFilePath, LfsPointerTest.Content);
 
-                var subDir = Path.Combine(nugetDir, "subdir");
-                Directory.CreateDirectory(subDir);
+                // load file
+                var pointer = LfsPointer.Create(lfsFilePath);
 
-                var loader = LfsLoader.Create();
-                var lfsConfigFile = loader.GetConfigFile(configFilePath);
-                var lfsFile = loader.GetFile(lfsFilePath);
-
-                Assert.AreEqual(lfsConfigFile, lfsFile.ConfigFile);
+                // check regex expansions
+                Assert.AreEqual(LfsPointerType.Curl, pointer.Type);
+                Assert.AreEqual(
+                    "https://dist.nuget.org/win-x86-commandline/v3.4.4/nuget.exe",
+                    pointer.Url.ToString()
+                );
             }
         }
     }

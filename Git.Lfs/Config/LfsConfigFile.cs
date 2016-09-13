@@ -1,52 +1,51 @@
 ﻿using System;
-using System.Collections.Generic;
-using IOPath = System.IO.Path;
 using System.Collections;
+using System.Collections.Generic;
 
 namespace Git.Lfs {
 
     public sealed class LfsConfigFile : IEnumerable<GitConfigValue> {
         public const string FileName = ".lfsconfig";
         public const string UrlId = "lfx.url";
-        public const string RegexId = "lfx.regex";
+        public const string PatternId = "lfx.pattern";
         public const string TypeId = "lfx.type";
-        public const string HintId = "lfx.hint";
+        public const string ArchiveHintId = "lfx.archiveHint";
 
-        private readonly LfsLoader m_loader;
-        private readonly string m_path;
-        private readonly string m_directory;
-        private readonly GitConfigFile m_config;
+        public const string CleanFilterId = "filter.lfx.clean";
+        public const string SmudgeFilterId = "filter.lfx.smudge";
 
-        internal LfsConfigFile(LfsLoader loader, string path) {
-            if (string.Compare(IOPath.GetFileName(path), FileName, ignoreCase: true) != 0)
-                throw new Exception($"Expected LsfConfigFile path '{path}' to have name '.lfsconfig'.");
-
-            m_loader = loader;
-            m_path = path;
-            m_config = GitConfigFile.Create(path);
-            m_directory = IOPath.GetDirectoryName(path) + IOPath.DirectorySeparatorChar;
-
-            if (Type == LfsPointerType.Archive || Type == LfsPointerType.Curl) {
-                if (Url == null)
-                    throw new Exception($"Expected '{UrlId}' in '{path}'.");
-
-                if (Regex == null)
-                    throw new Exception($"Expected '{RegexId}' in '{path}'.");
-            }
+        public static LfsConfigFile Load(string path) {
+            return new LfsConfigFile(GitConfigFile.Load(path));
         }
 
-        public LfsLoader Loader => m_loader;
-        public string Path => m_path;
-        public string Directory => m_directory;
-        public string Url => m_config[UrlId];
-        public string Regex => m_config[RegexId];
-        public LfsPointerType Type => m_config[TypeId] == null ? LfsPointerType.Simple : (LfsPointerType)
-            Enum.Parse(typeof(LfsPointerType), m_config[TypeId], ignoreCase: true);
-        public string Hint => m_config[HintId];
+        private readonly GitConfigFile m_file;
 
-        public IEnumerator<GitConfigValue> GetEnumerator() => m_config.GetEnumerator();
+        internal LfsConfigFile(GitConfigFile file) {
+            m_file = file;
+        }
+
+        public GitConfigFile GitConfigFile => m_file;
+        public string Path => m_file.Path;
+
+        public string Url => m_file[UrlId];
+        public string Pattern => m_file[PatternId];
+        public LfsPointerType Type => m_file[TypeId].ToEnum<LfsPointerType>(ignoreCase: true);
+        public string ArchiveHint => m_file[ArchiveHintId];
+        public string CleanFilter => m_file[CleanFilterId];
+        public string SmudgeFilter => m_file[SmudgeFilterId];
+
+        public override string ToString() => m_file.ToString();
+
+        public IEnumerator<GitConfigValue> GetEnumerator() {
+            GitConfigValue value;
+
+            if (m_file.TryGetValue(UrlId, out value)) yield return value;
+            if (m_file.TryGetValue(PatternId, out value)) yield return value;
+            if (m_file.TryGetValue(TypeId, out value)) yield return value;
+            if (m_file.TryGetValue(ArchiveHintId, out value)) yield return value;
+            if (m_file.TryGetValue(CleanFilterId, out value)) yield return value;
+            if (m_file.TryGetValue(SmudgeFilterId, out value)) yield return value;
+        }
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-        public override string ToString() => m_config.ToString();
     }
 }

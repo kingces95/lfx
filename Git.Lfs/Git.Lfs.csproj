@@ -53,17 +53,16 @@
   <ItemGroup>
     <Compile Include="Cache\LfsBlob.cs" />
     <Compile Include="Cache\LfsBlobStore.cs" />
+    <Compile Include="Config\LfsConfig.cs" />
     <Compile Include="LfsCmd.cs" />
     <Compile Include="Config\LfsConfigFile.cs" />
-    <Compile Include="Config\LfsFile.cs" />
     <Compile Include="LfsHash.cs" />
     <Compile Include="LfsJson.cs" />
-    <Compile Include="LfsLoader.cs" />
-    <Compile Include="LfsObject.cs" />
     <Compile Include="Cache\LfsBlobCache.cs" />
     <Compile Include="LfsPointer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Util\Extensions.cs" />
+    <Compile Include="Util\StreamCounter.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

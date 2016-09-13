@@ -35,6 +35,7 @@ namespace Git.Lfs {
 
             return new LfsBlob(this, hash, path);
         }
+        private string[] Files => IODirectory.GetFiles(m_dir, "*", SearchOption.AllDirectories);
 
         public string Directory => m_dir;
         public LfsBlob Add(LfsBlob blob) {
@@ -74,13 +75,14 @@ namespace Git.Lfs {
             LfsBlob blob;
             return TryGet(hash, out blob);
         }
-        public int Count => this.Count();
+        public int Count => Files.Count();
+        public long Size => Files.Sum(o => new FileInfo(o).Length);
         public void Clear() => IODirectory.Delete(m_dir, recursive: true);
 
         public override string ToString() => $"{m_dir}";
 
         public IEnumerator<LfsBlob> GetEnumerator() {
-            return IODirectory.GetFiles(m_dir, "*", SearchOption.AllDirectories)
+            return Files
                 .Select(o => new LfsBlob(this, LfsHash.Parse(Path.GetFileName(o)), o))
                 .GetEnumerator();
         }

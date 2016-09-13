@@ -19,9 +19,14 @@ namespace Git {
             foreach (var name in names)
                 yield return new GitCmdSwitchInfo(name.ToString(), o => TryParseEnum<T>(o));
         }
+        public static GitCmdSwitchInfo Blank = 
+            new GitCmdSwitchInfo(string.Empty, o => string.IsNullOrEmpty(o) ? string.Empty : null);
+
         private static object TryParseEnum<T>(string value) where T : struct {
+            var ignoreCase = true;
+
             T result;
-            if (!Enum.TryParse(value, out result))
+            if (!Enum.TryParse(value, ignoreCase, out result))
                 return null;
             return result;
         }
@@ -68,7 +73,9 @@ namespace Git {
                     .ToDictionary(o => o.Name, StringComparer.InvariantCultureIgnoreCase);
             m_switches = new HashSet<object>();
             m_arguments = new List<string>();
-            Parse(GitCmdToken.Tokenize(args));
+
+            var tokens = GitCmdTokens.Tokenize(args);
+            Parse(tokens);
 
             if (Length < minArgs)
                 throw new GitCmdException($"Expected at least '{minArgs}' arguments.");
@@ -95,16 +102,19 @@ namespace Git {
 
             return ToLowerIfString(result);
         }
-        private void Parse(CmdTokens tokens) {
+        private void Parse(GitCmdTokens tokens) {
             m_exe = tokens.Dequeue(GitCmdTokenType.Literal).Value;
 
-            if (!tokens.Any())
+            var token = tokens.Dequeue();
+            if (token.Type == GitCmdTokenType.EndOfStram)
                 return;
 
-            m_name = tokens.Dequeue(GitCmdTokenType.Literal).Value;
+            if (token.Type != GitCmdTokenType.Literal)
+                tokens.ParseError();
+            m_name = token.Value;
 
             while (tokens.Any()) {
-                var token = tokens.Dequeue();
+                token = tokens.Dequeue();
 
                 if (token.Type == GitCmdTokenType.Dash)
                     ParseShortSwitch(tokens);
@@ -115,36 +125,44 @@ namespace Git {
                 else if (token.Type == GitCmdTokenType.Literal)
                     m_arguments.Add(token.Value);
 
+                else if (token.Type == GitCmdTokenType.EndOfStram)
+                    break;
+
                 else
                     tokens.ParseError();
             }
         }
-        private void ParseShortSwitch(CmdTokens tokens) {
+        private void ParseShortSwitch(GitCmdTokens tokens) {
             var token = tokens.Dequeue();
             if (token.Type != GitCmdTokenType.Literal)
                 tokens.ParseError();
 
             if (token.Value.Length != 1)
-                throw new GitCmdException($"Token '{token}' following single dash must be a single character literal.");
+                throw new GitCmdException(
+                    $"Token '{token}' following single dash must be a single character literal.");
 
             AddSwitch(token);
         }
-        private void ParseLongSwitch(CmdTokens tokens) {
-            var token = tokens.Dequeue();
-            if (token.Type != GitCmdTokenType.Literal)
-                tokens.ParseError();
+        private void ParseLongSwitch(GitCmdTokens tokens) {
+            var token = tokens.Dequeue(
+                GitCmdTokenType.Literal, 
+                GitCmdTokenType.WhiteSpace,
+                GitCmdTokenType.EndOfStram
+            );
 
             if (token.Value.Length == 1)
-                throw new GitCmdException($"Token '{token}' following single dash must be multi-character literal.");
+                throw new GitCmdException(
+                    $"Token '{token}' following single dash must be multi-character literal.");
 
             AddSwitch(token);
         }
         private void AddSwitch(GitCmdToken token) {
 
-            var swtch = ParseSwitch(token.Value);
+            var value = token.Value.Trim();
+            var swtch = ParseSwitch(value);
 
             if (swtch == null)
-                throw new GitCmdException($"Switch '{swtch}' is not supported for this command.");
+                throw new GitCmdException($"Switch '{value}' is not supported for this command.");
 
             if (IsSet(swtch))
                 throw new GitCmdException($"Switch '{token.Value}' must be set only once.");

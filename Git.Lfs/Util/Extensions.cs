@@ -30,5 +30,11 @@ namespace Git.Lfs {
         public static LfsHash ComputeHash(this Stream stream) => LfsHash.Compute(stream);
         public static LfsHash ComputeHash(this byte[] bytes) => LfsHash.Compute(bytes);
         public static LfsHash ComputeHash(this byte[] bytes, int count) => LfsHash.Compute(bytes, count);
+
+        public static T ToEnum<T>(this string value, bool ignoreCase = false) {
+            if (value == null)
+                return (T)Enum.ToObject(typeof(T), 0);
+            return (T)Enum.Parse(typeof(T), value, ignoreCase);
+        }
     }
 }

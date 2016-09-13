@@ -7,9 +7,10 @@ namespace Git {
         public const string Exe = "git.exe";
 
         public static StreamReader Execute(
-            string commandLine, 
-            string workingDirectory = null) => 
+            string commandLine,
+            string workingDirectory = null) {
 
-            Cmd.Execute(Exe, commandLine);
+            return Cmd.Execute(Exe, commandLine);
+        }
     }
 }

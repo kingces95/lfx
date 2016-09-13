@@ -55,7 +55,7 @@
     <Compile Include="LfsBlobStoreTest.cs" />
     <Compile Include="LfsConfigFileTest.cs" />
     <Compile Include="LfsTest.cs" />
-    <Compile Include="LfsFileTest.cs" />
+    <Compile Include="LfsConfigTest.cs" />
     <Compile Include="LfsHashTest.cs" />
     <Compile Include="LfsPointerTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
