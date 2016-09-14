@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
 
-namespace Git.Lfs {
+namespace Git {
 
     public class TempCurDir : IDisposable {
         public static implicit operator string(TempCurDir tempDir) => Environment.CurrentDirectory;

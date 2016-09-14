@@ -40,6 +40,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="GitFile.cs" />
     <Compile Include="GitCmdArgs.cs" />
     <Compile Include="GitCmdToken.cs" />
     <Compile Include="GitConfig.cs" />

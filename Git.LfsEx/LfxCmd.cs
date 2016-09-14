@@ -8,6 +8,7 @@ using System.Net;
 using System.Collections;
 using System.Reflection;
 using Git;
+using System.Xml.Linq;
 
 namespace Lfx {
 
@@ -15,6 +16,7 @@ namespace Lfx {
         Set,
         Unset,
         List, L,
+        Sample
     }
 
     public sealed class LfxCmd {
@@ -74,6 +76,7 @@ namespace Lfx {
         private void ParseNoArgsAndNoSwitches() {
             Parse(maxArgs: 0);
         }
+        private void Log(object obj) => Log(obj?.ToString());
         private void Log(string message = null) {
             Console.WriteLine(message);
         }
@@ -90,20 +93,21 @@ namespace Lfx {
             Log("git-lfx/0.0.1 (GitHub; corclr)");
             Log("git lfs <command> [<args>]");
             Log();
+            Log("Init                   Initialize a new git repository; Set lfx filters.");
+            Log("    --sample               Adds sample config to restore NUnit nuget package.");
+            Log();
+            Log("Clone <url> <target>   Clone repository containing lfx content.");
+            Log();
+            Log("Show <path>            Write contents of a staged file (after running clean filter).");
+            Log();
             Log("Env                    Display the Git LFX environment.");
+            Log();
+            Log("Clear                  Delete all caches.");
             Log();
             Log("Config                 Manage git config files settings.");
             Log("    -l, --list             List lfx filters.");
             Log("    --unset                Unset lfx filters.");
             Log("    --set                  Set lfx filters.");
-            Log();
-            Log("Init                   Initialize a new git repository; Set lfx filters.");
-            Log();
-            Log("Clear                  Delete all caches.");
-            Log();
-            Log("Clone <url> <target>   Clone repository containing lfx content.");
-            Log();
-            Log("Show <path>            Write contents of a staged file (after running clean filter).");
             Log();
             Log("Clean <path>           Write a lfx pointer to a file's content to standard output.");
             Log();
@@ -180,9 +184,63 @@ namespace Lfx {
             else throw new GitCmdException("Config argument check failure.");
         }
         public void Init() {
-            ParseNoArgsAndNoSwitches();
+            var nugetUrl = "https://dist.nuget.org/win-x86-commandline/v3.4.4/NuGet.exe";
+            var nugetHash = "c12d583dd1b5447ac905a334262e02718f641fca3877d0b6117fe44674072a27";
+            var nugetCount = 3957976L;
+
+            var nugetPkgUrl = "http://nuget.org/api/v2/package/${id}/${ver}";
+            var nugetPkgPattern = "^((?<id>.*?)[.])(?=\\d)(?<ver>[^/]*)/(?<path>.*)$";
+            var nugetPkgHint = "${path}";
+
+            var args = Parse(
+                maxArgs: 0,
+                switchInfo: GitCmdSwitchInfo.Create(
+                    LfsCmdSwitches.Sample
+                )
+            );
             Git("init");
             Lfx("config --set");
+
+            if (!args.IsSet(LfsCmdSwitches.Sample))
+                return;
+
+            File.WriteAllText(".gitattributes", $"* text=auto");
+
+            using (var dls = new TempCurDir("dls")) {
+                File.WriteAllLines(".gitattributes", new[] {
+                    $"* filter=lfx diff=lfx merge=lfx -text",
+                    $".gitattributes filter= diff= merge= text=auto",
+                    $".gitignore filter= diff= merge= text=auto",
+                    $"packages.config filter= diff= merge= text=auto",
+                    $"*.lfsconfig filter= diff= merge= text eol=lf"
+                });
+
+                using (var packages = new TempCurDir("tools")) {
+                    Git($"config -f NuGet.exe.lfsconfig --add lfx.type curl");
+                    Git($"config -f NuGet.exe.lfsconfig --add lfx.url {nugetUrl}");
+
+                    File.WriteAllText("Nuget.exe", LfsPointer.Create(
+                        hash: LfsHash.Parse(nugetHash),
+                        count: nugetCount
+                    ).ToString());
+                }
+
+                using (var packages = new TempCurDir("packages")) {
+                    File.WriteAllText(".gitignore", $"*.nupkg");
+
+                    Git($"config -f .lfsconfig --add lfx.type archive");
+                    Git($"config -f .lfsconfig --add lfx.url {nugetPkgUrl}");
+                    Git($"config -f .lfsconfig --add lfx.pattern {nugetPkgPattern}");
+                    Git($"config -f .lfsconfig --add lfx.archiveHint {nugetPkgHint}");
+
+                    new XElement("packages",
+                        new XElement("package",
+                            new XAttribute("id", "NUnit"),
+                            new XAttribute("version", "2.6.4")
+                        )
+                    ).Save("packages.config");
+                }
+            }
         }
         public void Clone() {
             var args = Parse(
@@ -256,6 +314,13 @@ namespace Lfx {
 
                 cache = cache.Parent;
             }
+        }
+        public void Files() {
+            ParseNoArgsAndNoSwitches();
+
+            var files = GitFile.Load();
+            foreach (var file in files)
+                Log(file + " " + file.GetValue("filter"));
         }
     }
 }

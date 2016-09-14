@@ -8,9 +8,10 @@ namespace Git {
 
         public static StreamReader Execute(
             string commandLine,
-            string workingDirectory = null) {
+            string workingDirectory = null,
+            Stream inputStream = null) {
 
-            return Cmd.Execute(Exe, commandLine);
+            return Cmd.Execute(Exe, commandLine, workingDirectory, inputStream);
         }
     }
 }

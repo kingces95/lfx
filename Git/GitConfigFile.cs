@@ -115,11 +115,7 @@ namespace Git {
 
                 var sr = GitCmd.Execute(RefreshCommand, WorkingDir);
 
-                while (true) {
-                    var line = sr.ReadLine();
-                    if (line == null)
-                        break;
-
+                foreach (var line in sr.Lines()) {
                     var match = Regex.Match(line, ConfigRegex, RegexOptions.IgnoreCase);
                     var key = match.Groups[ConfigRegexName].Value;
                     var value = match.Groups[ConfigRegexValue].Value;

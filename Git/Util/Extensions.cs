@@ -50,6 +50,16 @@ namespace Git {
             return path.EndsWith($"{IOPath.DirectorySeparatorChar}");
         }
 
+        public static IEnumerable<string> Lines(this StreamReader stream) {
+            while (true) {
+                var line = stream.ReadLine();
+                if (string.IsNullOrEmpty(line))
+                    yield break;
+
+                yield return line;
+            }
+        }
+
         public static V GetValueOrDefault<K, V>(this Dictionary<K, V> source, K key) {
             V value;
             if (!source.TryGetValue(key, out value))

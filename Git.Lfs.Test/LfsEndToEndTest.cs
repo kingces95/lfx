@@ -48,6 +48,10 @@ namespace Git.Lfs.Live.Test {
 
         [Test]
         public static void Test() {
+        }
+
+        [Test]
+        public static void ManualTest() {
             Console.WriteLine($"currentDir: {Environment.CurrentDirectory}");
 
             using (var tempDir = new TempDir()) {

@@ -1,7 +1,6 @@
 ﻿using System.Linq;
 using NUnit.Framework;
 using System;
-using Git.Lfs;
 
 namespace Git.Test {
 

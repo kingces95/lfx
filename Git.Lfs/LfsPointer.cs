@@ -113,6 +113,9 @@ namespace Git.Lfs
             var hash = LfsHash.Compute(stream);
             var count = stream.Position;
 
+            return Create(hash, count);
+        }
+        public static LfsPointer Create(LfsHash hash, long count) {
             var pointer = new LfsPointer();
             pointer.Add(VersionKey, Version1Uri.ToString());
             pointer.Add(SizeKey, $"{count}");
