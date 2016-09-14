@@ -98,6 +98,8 @@ namespace Lfx {
             Log();
             Log("Clone <url> <target>   Clone repository containing lfx content.");
             Log();
+            Log("Files                  List using lfx filters files in directory and subdirectories.");
+            Log();
             Log("Show <path>            Write contents of a staged file (after running clean filter).");
             Log();
             Log("Env                    Display the Git LFX environment.");
@@ -318,18 +320,9 @@ namespace Lfx {
         public void Files() {
             ParseNoArgsAndNoSwitches();
 
-            var stream = new StreamReader(
-                GitCmd.Stream("check-attr -a --stdin",
-                    inputStream: GitCmd.Stream("ls-files")
-                )
-            );
-
-            foreach (var line in stream.Lines())
+            var lfxFiles = GitFile.Load().Where(o => o.IsDefined("filter", "lfx"));
+            foreach (var line in lfxFiles)
                 Log(line);
-
-            //var files = GitFile.Load();
-            //foreach (var file in files)
-            //    Log(file + " " + file.GetValue("filter"));
         }
     }
 }

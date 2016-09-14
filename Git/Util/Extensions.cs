@@ -50,6 +50,16 @@ namespace Git {
             return path.EndsWith($"{IOPath.DirectorySeparatorChar}");
         }
 
+        public static void CopyTo(this StreamReader reader, StreamWriter target) {
+            var buffer = new char[4096];
+            while (true) {
+                var count = reader.ReadBlock(buffer, 0, buffer.Length);
+                if (count == 0)
+                    break;
+                target.Write(buffer, 0, count);
+            }
+        }
+
         public static IEnumerable<string> Lines(this StreamReader stream) {
             while (true) {
                 var line = stream.ReadLine();

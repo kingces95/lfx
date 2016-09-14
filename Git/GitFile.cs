@@ -13,47 +13,64 @@ namespace Git {
             dir = dir.ToDir();
             var dirUrl = dir.ToUrl();
 
-            var stream = GitCmd.Execute("ls-files");
+            var stream = new StreamReader(
+                GitCmd.Stream("check-attr -a --stdin",
+                    inputStream: GitCmd.Stream("ls-files")
+                )
+            );
+
+
+            Uri currentPath = null;
+            Dictionary<string, string> attributes = null;
+
             foreach (var line in stream.Lines()) {
-                var pathUrl = new Uri(dirUrl, line);
-                yield return new GitFile(pathUrl.LocalPath);
+                var match = Regex.Match(line, AttributeRegex, RegexOptions.IgnoreCase);
+                var thisPath = new Uri(dirUrl, match.Groups[PatternPath].Value);
+                var key = match.Groups[PatternName].Value;
+                var value = match.Groups[PatternValue].Value;
+                if (string.IsNullOrEmpty(value))
+                    value = null;
+
+                if (currentPath != thisPath) {
+                    if (currentPath != null)
+                        yield return new GitFile(currentPath.LocalPath, attributes);
+
+                    currentPath = thisPath;
+                    attributes = new Dictionary<string, string>(
+                        StringComparer.InvariantCultureIgnoreCase);
+                }
+
+                attributes[key] = value;
             }
         }
 
-        private const string AttributeRegexName = "name";
-        private const string AttributeRegexValue = "value";
+        private const string PatternPath = "path";
+        private const string PatternName = "name";
+        private const string PatternValue = "value";
         private static readonly string AttributeRegex =
-            $"^[^:]*:*\\s+(?<{AttributeRegexName}>[^:]*):\\s+(?<{AttributeRegexValue}>.*)$";
+            $"^(?<{PatternPath}>[^:]*):*\\s+(?<{PatternName}>[^:]*):\\s+(?<{PatternValue}>.*)$";
 
         private readonly string m_path;
         private readonly string m_pathLower;
         private readonly Dictionary<string, string> m_attributes;
 
-        public GitFile(string path) {
+        public GitFile(string path, Dictionary<string, string> attributes) {
             m_path = path;
             m_pathLower = m_path.ToLower();
-
-            var lines = GitCmd.Execute(
-                $"check-attr -a {Path.GetFileName(path)}",
-                Path.GetDirectoryName(path).ToDir()
-            ).Lines();
-
-            m_attributes = new Dictionary<string, string>();
-            foreach (var line in lines) {
-                var match = Regex.Match(line, AttributeRegex, RegexOptions.IgnoreCase);
-                var key = match.Groups[AttributeRegexName].Value;
-                var value = match.Groups[AttributeRegexValue].Value;
-                m_attributes[key] = value;
-            }
+            m_attributes = attributes;
         }
 
-        public bool TryGetValue(string key, out string value) => m_attributes.TryGetValue(key, out value);
-        public string GetValue(string key) {
+        public string GetAttribute(string key) {
             string value;
-            TryGetValue(key, out value);
+            m_attributes.TryGetValue(key, out value);
             return value;
         }
-        public bool Contains(string key) => m_attributes.ContainsKey(key);
+        public bool IsDefined(string key, string value = null) {
+            if (value == null)
+                return m_attributes.ContainsKey(key);
+
+            return string.Equals(GetAttribute(key), value);
+        }
         public IEnumerable<KeyValuePair<string, string>> Attributes() => m_attributes;
 
         public bool Equals(GitFile other) => other == null ? false : m_pathLower == other.m_pathLower;
