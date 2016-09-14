@@ -6,7 +6,10 @@ namespace Git.Test {
 
     [TestFixture]
     public class GitConfigTest {
-        private static void Git(string arguments) => GitCmd.Execute(arguments);
+        private static void Git(string arguments) {
+            var message = $">git {GitCmd.Execute(arguments).ReadToEnd()}";
+            Console.WriteLine(message);
+        }
 
         [Test]
         public static void Test() {

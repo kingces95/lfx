@@ -318,9 +318,18 @@ namespace Lfx {
         public void Files() {
             ParseNoArgsAndNoSwitches();
 
-            var files = GitFile.Load();
-            foreach (var file in files)
-                Log(file + " " + file.GetValue("filter"));
+            var stream = new StreamReader(
+                GitCmd.Stream("check-attr -a --stdin",
+                    inputStream: GitCmd.Stream("ls-files")
+                )
+            );
+
+            foreach (var line in stream.Lines())
+                Log(line);
+
+            //var files = GitFile.Load();
+            //foreach (var file in files)
+            //    Log(file + " " + file.GetValue("filter"));
         }
     }
 }
