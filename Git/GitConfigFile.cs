@@ -113,7 +113,11 @@ namespace Git {
                 var config = new Dictionary<string, GitConfigValue>(
                     StringComparer.InvariantCultureIgnoreCase);
 
-                var sr = GitCmd.Execute(RefreshCommand, WorkingDir);
+                // Bug: `git config -l --local` inexplicably fails when both 
+                // (1) called via git filter and when (2) working dir explictly set
+                string workingDir = null; // = WorkingDir;
+
+                var sr = GitCmd.Execute(RefreshCommand, workingDir);
 
                 foreach (var line in sr.Lines()) {
                     var match = Regex.Match(line, ConfigRegex, RegexOptions.IgnoreCase);

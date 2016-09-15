@@ -30,40 +30,88 @@ namespace Git.Lfs
         private const string OidHashMethodSha256 = "sha256";
 
         public static LfsPointer Parse(TextReader stream) => Parse(stream.ReadToEnd());
-        public static LfsPointer Parse(string text) {
+        public static bool CanParse(TextReader stream) {
+            LfsPointer pointer;
+            return TryParse(stream, out pointer);
+        }
+        public static bool TryParse(TextReader stream, out LfsPointer pointer) {
+            string errorMessage;
+            return TryParse(stream, out pointer, out errorMessage);
+        }
+        public static bool TryParse(TextReader stream, out LfsPointer pointer, out string errorMessage) {
+            pointer = new LfsPointer();
+            errorMessage = null;
 
-            if (!text.EndsWith(EndOfPointer))
-                throw new Exception("Expected lfs pointer to end in '\\n\\n'.");
+            var lines = stream.Lines(EndOfLine, 4096);
 
-            text = text.Substring(0, text.Length - EndOfPointer.Length);
-            var lines = text.Split(EndOfLine[0]);
-
-            var pointer = new LfsPointer();
-
-            var first = false;
+            var last = false;
+            var first = true;
             var previousKey = string.Empty;
             foreach (var line in lines) {
-                if (string.IsNullOrEmpty(line))
-                    throw new Exception("Unexpected blank line encountered in lfs pointer.");
+
+                if (line == string.Empty) {
+                    last = true;
+                    continue;
+                }
+
+                if (string.IsNullOrEmpty(line)) {
+                    errorMessage = "Unexpected blank line encountered in lfs pointer.";
+                    return false;
+                }
 
                 var indexOfSpace = line.IndexOf(' ');
-                if (indexOfSpace == -1)
-                    throw new Exception($"Expected space separating pointer line '{line}'.");
+                if (indexOfSpace == -1) {
+                    errorMessage = $"Expected space separating pointer line '{line}'.";
+                    return false;
+                }
 
                 var key = line.Substring(0, indexOfSpace);
                 var value = line.Substring(indexOfSpace + 1);
 
-                if (first && key != VersionKey)
-                    throw new Exception($"Expected first lfs pointer key to be '{VersionKey}' but was '{key}'.");
+                if (first && key != VersionKey) {
+                    errorMessage = $"Expected first lfs pointer key to be '{VersionKey}' but was '{key}'.";
+                    return false;
+                }
                 first = false;
 
-                if (key.CompareTo(previousKey) <= 0)
-                    throw new Exception($"Expected lfs pointer '{key}' to come before previous key '{previousKey}'.");
+                if (key.CompareTo(previousKey) <= 0) {
+                    errorMessage = $"Expected lfs pointer '{key}' to come before previous key '{previousKey}'.";
+                    return false;
+                }
 
                 pointer.Add(key, value);
             }
 
+            if (!last) {
+                errorMessage = "Expected lfs pointer to end in '\\n\\n'.";
+                return false;
+            }
+
+            return true;
+        }
+
+        public static LfsPointer Parse(string text) {
+            string errorMessage;
+            LfsPointer pointer;
+            if (!TryParse(text, out pointer, out errorMessage))
+                throw new Exception(errorMessage);
             return pointer;
+        }
+        public static bool CanParse(string text) {
+            LfsPointer pointer;
+            return TryParse(text, out pointer);
+        }
+        public static bool TryParse(string text, out LfsPointer pointer) {
+            string errorMessage;
+            return TryParse(text, out pointer, out errorMessage);
+        }
+        public static bool TryParse(string text, out LfsPointer pointer, out string errorMessage) {
+            return TryParse(new StringReader(text), out pointer, out errorMessage);
+        }
+
+        public static bool TryLoad(string path, out LfsPointer pointer) {
+            using (var stream = new StreamReader(path))
+                return TryParse(stream, out pointer);
         }
         public static LfsPointer Load(string path) => Parse(File.ReadAllText(path));
 
@@ -142,7 +190,7 @@ namespace Git.Lfs
         private const string ValueRegex = "^([^\n\r])*$";
         private static readonly Dictionary<string, string> KnownKeyRegex =
             new Dictionary<string, string>() {
-                [OidKey] = $"^{OidHashMethodSha256}:{LfsHash.Pattern}$",
+                [OidKey] = $"^{OidHashMethodSha256}" + ":([a-fA-F0-9]){64}$",
                 [SizeKey] = @"^(\d*)$"
             };
         private static readonly string[] UrlKeys = new[] {

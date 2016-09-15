@@ -1,39 +1,59 @@
 ﻿using System;
 using System.IO;
-using System.Diagnostics;
-using System.Collections;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using IOPath = System.IO.Path;
 
 namespace Git {
+    [Flags]
+    public enum GitFileFlags {
+        Tracked = 1 << 0,
+        Untracked = 1 << 1,
+        All = Tracked | Untracked
+    }
+
     public sealed class GitFile : IEquatable<GitFile> {
-        public static IEnumerable<GitFile> Load(string dir = null) {
+
+        public static IEnumerable<GitFile> Load(
+            string filter = null,
+            string dir = null,
+            GitFileFlags flags = GitFileFlags.All) {
+
             if (dir == null)
                 dir = Environment.CurrentDirectory;
-            dir = dir.ToDir();
-            var dirUrl = dir.ToUrl();
+            dir = IOPath.GetFullPath(dir.ToDir());
 
-            var stream = new StreamReader(
-                GitCmd.Stream("check-attr -a --stdin",
-                    inputStream: GitCmd.Stream("ls-files")
-                )
-            );
+            // tracked, untracked files
+            var lsFilesCommand = $"ls-files {filter}";
+            if ((flags & GitFileFlags.Tracked) != 0)
+                lsFilesCommand += " -c";
+            if ((flags & GitFileFlags.Untracked) != 0)
+                lsFilesCommand += " -o";
 
+            // ls-files | check-attr
+            var stream = GitCmd.Stream(lsFilesCommand, dir)
+                .PipeTo(GitCmd.Exe, "check-attr -a --stdin", dir);
 
+            // parse output
             Uri currentPath = null;
             Dictionary<string, string> attributes = null;
 
-            foreach (var line in stream.Lines()) {
+            var dirUrl = dir.ToUrl();
+            foreach (var line in new StreamReader(stream).Lines()) {
                 var match = Regex.Match(line, AttributeRegex, RegexOptions.IgnoreCase);
-                var thisPath = new Uri(dirUrl, match.Groups[PatternPath].Value);
-                var key = match.Groups[PatternName].Value;
-                var value = match.Groups[PatternValue].Value;
+                var path = match.Get(PatternPath);
+                var key = match.Get(PatternName);
+                var value = match.Get(PatternValue);
+
+                var thisPath = new Uri(dirUrl, path);
+
                 if (string.IsNullOrEmpty(value))
                     value = null;
 
                 if (currentPath != thisPath) {
                     if (currentPath != null)
-                        yield return new GitFile(currentPath.LocalPath, attributes);
+                        yield return new GitFile(
+                            currentPath.LocalPath, flags, attributes);
 
                     currentPath = thisPath;
                     attributes = new Dictionary<string, string>(
@@ -42,23 +62,39 @@ namespace Git {
 
                 attributes[key] = value;
             }
+
+            if (currentPath != null)
+                yield return new GitFile(
+                    currentPath.LocalPath, flags, attributes);
         }
 
         private const string PatternPath = "path";
         private const string PatternName = "name";
         private const string PatternValue = "value";
         private static readonly string AttributeRegex =
-            $"^(?<{PatternPath}>[^:]*):*\\s+(?<{PatternName}>[^:]*):\\s+(?<{PatternValue}>.*)$";
+            $"^(?<{PatternPath}>[^:]*?)\"?:\\s+" +
+            $"(?<{PatternName}>[^:]*):\\s+" +
+            $"(?<{PatternValue}>.*)$";
 
         private readonly string m_path;
         private readonly string m_pathLower;
         private readonly Dictionary<string, string> m_attributes;
+        private readonly GitFileFlags m_flags;
 
-        public GitFile(string path, Dictionary<string, string> attributes) {
+        public GitFile(
+            string path, 
+            GitFileFlags flags, 
+            Dictionary<string, string> attributes) {
+
             m_path = path;
+            m_flags = flags;
             m_pathLower = m_path.ToLower();
             m_attributes = attributes;
         }
+
+        public string Path => m_path;
+        public bool IsUntracked => (m_flags & GitFileFlags.Untracked) != 0;
+        public bool IsTracked => !IsUntracked;
 
         public string GetAttribute(string key) {
             string value;

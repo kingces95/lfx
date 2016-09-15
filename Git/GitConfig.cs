@@ -10,6 +10,12 @@ namespace Git {
 
         public static GitConfig LoadSystem() => Load(GitConfigFile.LoadSystem());
         public static GitConfig LoadGlobal() => Load(GitConfigFile.LoadGlobal(), LoadSystem());
+        public static GitConfig Load(GitConfigFile configFile, GitConfig parent = null) {
+            if (configFile == null)
+                throw new ArgumentNullException(nameof(configFile));
+
+            return new GitConfig(configFile, parent);
+        }
         public static GitConfig Load(string path = null, string configFileName = null) {
 
             // explicit config file
@@ -43,12 +49,6 @@ namespace Git {
 
             // global config file
             return LoadGlobal();
-        }
-        public static GitConfig Load(GitConfigFile configFile, GitConfig parent = null) {
-            if (configFile == null)
-                throw new ArgumentNullException(nameof(configFile));
-
-            return new GitConfig(configFile, parent);
         }
 
         private readonly GitConfigFile m_configFile;
@@ -85,7 +85,7 @@ namespace Git {
             }
         }
 
-        public int Count => m_configFile.Count + m_parent?.Count ?? 0;
+        public int Count => Keys().Count();
         public bool Contains(string key) {
             string value;
             return TryGetValue(key, out value);

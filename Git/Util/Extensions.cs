@@ -1,10 +1,10 @@
 ﻿using System;
 using System.IO;
-using System.Net;
-using System.IO.Compression;
 using System.Collections.Generic;
 using System.Linq;
 using IOPath = System.IO.Path;
+using System.Text.RegularExpressions;
+using System.Text;
 
 namespace Git {
 
@@ -23,7 +23,10 @@ namespace Git {
             return dir;
         }
         public static string GetDir(this string dir) {
-            return IOPath.GetDirectoryName(dir).ToDir();
+            var dirName = IOPath.GetDirectoryName(dir);
+            if (string.IsNullOrEmpty(dirName))
+                return @".\";
+            return dirName.ToDir();
         }
         public static string CopyToDir(this string file, string dir = null) {
             if (dir == null)
@@ -50,6 +53,12 @@ namespace Git {
             return path.EndsWith($"{IOPath.DirectorySeparatorChar}");
         }
 
+        public static Stream PipeTo(
+            this Stream stream,
+            string exeName,
+            string commandLine,
+            string workingDir = null,
+            Stream inputStream = null) => Cmd.Stream(exeName, commandLine, workingDir, stream);
         public static void CopyTo(this StreamReader reader, StreamWriter target) {
             var buffer = new char[4096];
             while (true) {
@@ -59,7 +68,6 @@ namespace Git {
                 target.Write(buffer, 0, count);
             }
         }
-
         public static IEnumerable<string> Lines(this StreamReader stream) {
             while (true) {
                 var line = stream.ReadLine();
@@ -69,6 +77,52 @@ namespace Git {
                 yield return line;
             }
         }
+        public static IEnumerable<string> Lines(
+            this TextReader stream, string delimiter = null, int maxLength = int.MaxValue) {
+
+            if (string.IsNullOrEmpty(delimiter))
+                delimiter = Environment.NewLine;
+
+            var sb = new StringBuilder();
+            var delimiterIndex = 0;
+
+            while (true) {
+
+                if (delimiter.Length == delimiterIndex || sb.Length == maxLength) {
+                    yield return sb.ToString();
+                    sb.Clear();
+                    delimiterIndex = 0;
+                }
+
+                var current = stream.Read();
+                if (current == -1)
+                    break;
+
+                var currentChar = (char)current;
+
+                if (delimiter[delimiterIndex] == currentChar) {
+                    delimiterIndex++;
+                    continue;
+                }
+
+                sb.Append(currentChar);
+            }
+
+            yield return sb.ToString();
+        }
+
+        public static string Get(this Match match, string name) {
+            var group = match.Groups[name];
+            if (group == null)
+                return null;
+
+            var value = group.Value;
+            if (string.IsNullOrEmpty(value))
+                return null;
+
+            return value;
+        }
+
 
         public static V GetValueOrDefault<K, V>(this Dictionary<K, V> source, K key) {
             V value;

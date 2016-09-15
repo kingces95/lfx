@@ -3,7 +3,7 @@ using System.IO;
 using System.Diagnostics;
 
 namespace Git {
-    public sealed class GitCmd {
+    public static class GitCmd {
         public const string Exe = "git.exe";
 
         public static Stream Stream(

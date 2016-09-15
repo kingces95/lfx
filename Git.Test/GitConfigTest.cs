@@ -4,11 +4,43 @@ using System;
 
 namespace Git.Test {
 
+    public class TempGitDir : IDisposable {
+        public static implicit operator string(TempGitDir dir) => dir.m_tempDir;
+
+        private TempDir m_tempDir;
+
+        public TempGitDir() {
+            m_tempDir = new TempDir();
+            GitCmd.Execute($"init");
+        }
+
+        public void Dispose() => m_tempDir.Dispose();
+    }
+
     [TestFixture]
     public class GitConfigTest {
         private static void Git(string arguments) {
             var message = $">git {GitCmd.Execute(arguments).ReadToEnd()}";
             Console.WriteLine(message);
+        }
+
+        [Test]
+        public static void ConfigCounts() {
+            Console.WriteLine($"currentDir: {Environment.CurrentDirectory}");
+
+            using (var tempDir = new TempGitDir()) {
+                var local = GitConfig.Load();
+                var global = local.Parent;
+                var system = global.Parent;
+
+                var systemKeys = system.ToArray();
+                var globalKeys = global.ToArray();
+                var localKeys = local.ToArray();
+
+                Assert.AreEqual(local.Count, local.Count());
+                Assert.AreEqual(global.Count, global.Count());
+                Assert.AreEqual(system.Count, system.Count());
+            }
         }
 
         [Test]

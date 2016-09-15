@@ -27,7 +27,7 @@ namespace Git.Lfs {
             var lfsDir = gitLoader.GitDirectory + LfsDirName.ToDir();
 
             // objectsDir -> /.git/lfs/objects/
-            var objectsDir = lfsDir + LfsBlobCache.ObjectsDirName.ToDir();
+            var objectsDir = lfsDir + ObjectsDirName.ToDir();
 
             var cache = Create(
                 objectsDir, // L1 cache

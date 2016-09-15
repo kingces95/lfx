@@ -29,8 +29,7 @@ namespace Git {
                 WorkingDirectory = workingDir,
             };
 
-            var process = Process.Start(processStartInfo);
-            return new CmdStream(process, inputStream);
+            return new CmdStream(processStartInfo, inputStream);
         }
 
         internal static string FindFileOnPath(string fileName) {
@@ -44,24 +43,28 @@ namespace Git {
         }
 
         private readonly Process m_process;
+        private readonly int m_id;
         private readonly Stream m_standardOutput;
         private readonly Task m_consumeStandardError;
         private readonly Stream m_standardError;
         private long m_position;
 
-        public CmdStream(Process process, Stream inputStream) {
-            m_process = process;
-            m_standardOutput = process.StandardOutput.BaseStream;
+        public CmdStream(ProcessStartInfo processStartInfo, Stream inputStream) {
+            m_process = Process.Start(processStartInfo);
+            m_id = m_process.Id;
+            m_standardOutput = m_process.StandardOutput.BaseStream;
             m_standardError = new MemoryStream();
 
-            m_consumeStandardError = Task.Run(() => 
-                process.StandardError.BaseStream.CopyTo(m_standardError)
+            m_consumeStandardError = Task.Run(() =>
+                m_process.StandardError.BaseStream.CopyTo(m_standardError)
             );
 
             if (inputStream != null) {
                 Task.Run(() => {
-                    var standardInput = process.StandardInput.BaseStream;
+                    var standardInput = m_process.StandardInput.BaseStream;
+                    //new StreamReader(inputStream).CopyTo(new StreamWriter(standardInput));
                     inputStream.CopyTo(standardInput);
+                    standardInput.Flush();
                     standardInput.Close();
                 });
             }
@@ -71,23 +74,19 @@ namespace Git {
             throw new InvalidOperationException();
         }
         private void WaitForProcessExit() {
-            try {
-                // wait for process and task compleation
-                if (!m_process.WaitForExit(DefaultWaitTime))
-                    throw new Exception($"Timed out waiting for command process to exit: {this}");
-                m_consumeStandardError.Wait();
 
-                // check for error
-                var exitCode = m_process.ExitCode;
-                if (m_standardError.Position != 0 && exitCode != 0) {
-                    m_standardError.Position = 0;
-                    throw new Exception(
-                        $"{this} =>{Environment.NewLine}{new StreamReader(m_standardError).ReadToEnd()}");
-                }
-            } 
-            
-            finally {
-                m_process.Close();
+            // wait for process and task compleation
+            if (!m_process.WaitForExit(DefaultWaitTime))
+                throw new Exception($"Timed out waiting for command process to exit: {this}");
+            m_consumeStandardError.Wait();
+
+            // check for error
+            var exitCode = m_process.ExitCode;
+            if (m_standardError.Position != 0 && exitCode != 0) {
+                m_standardError.Position = 0;
+                var message = $"Command '{this}' exited with '{exitCode}':" + Environment.NewLine +
+                    $"{new StreamReader(m_standardError).ReadToEnd()}";
+                throw new Exception(message);
             }
         }
 
@@ -117,6 +116,16 @@ namespace Git {
         public override void SetLength(long value) => ThrowInvalidOperation<long>();
         public override void Write(byte[] buffer, int offset, int count) => ThrowInvalidOperation<long>();
         public override void Flush() => m_standardOutput.Flush();
+
+        protected override void Dispose(bool disposing) {
+            base.Dispose(disposing);
+            if (disposing)
+                GC.SuppressFinalize(this);
+            m_process.Close();
+        }
+        ~CmdStream() {
+            Dispose(false);
+        }
 
         public override string ToString() => $"{m_process.StartInfo.FileName} {m_process.StartInfo.Arguments}";
     }
