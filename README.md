@@ -1,7 +1,7 @@
 # git-lfx
 _Teaching git how to restore nuget packages_
 
-`Lfx` is an adaption of [`Lfs`](https://git-lfs.github.com/). `Lfs` allows git to manage binary resources but requires a server be maintained to host the binaries. `Lfx` only supports restoring files already hosted individually or as part of a zip archive (e.g. a `nuget` package).
+`Lfx` is an adaption of [`Lfs`](https://git-lfs.github.com/). `Lfs` allows git to manage binary resources but requires a server be maintained to host the binaries. `Lfx` only supports restoring files already hosted either individually or as part of a zip archive (e.g. a `nuget` package).
 
 # Quickstart
 Before any of the following quickstart scenarios, install `git-lfx`:
@@ -52,7 +52,9 @@ Binary files could not be stored in `GIT` however no one said we couldn't store 
 Stay tuned... 
 
 # Actual Impetus
-Builds composed of multipule C# projects often suffer from duplication of common project settings. Among other things, this makes enforcement of policy challenging (e.g. enforcing warnings as errors is enabled for all projects). Builds typically solve this problem by extracting common settings to a single location where they can be centrally administered (e.g. [coreclr][1] and [corefx][2] extract their common settings to a set of `dir.proj` files). Unfortunately, most teams roll their own variant of this solution as their builds become larger and larger. Xamarin.Form libraries, however, are born needed dozens of projects in order to generate the zoo of binaries needed for each supported platform. And so, in this case, it makes sense to invest in a generalized solution which can be packaged up and reused by Xamarin.Forms library authors. Nuget seemed natural distribution vehicle except executing a `nuget restore` to pull down msbuild files felt wrong so `lfx`.
+Builds composed of multipule C# projects often suffer from duplication of common project settings. Among other things, this makes enforcement of policy challenging (e.g. enforcing warnings as errors is enabled for all projects). Builds typically solve this problem by extracting common settings to a single location where they can be centrally administered (e.g. [coreclr][1] and [corefx][2] extract their common settings to a set of `dir.proj` files). 
+
+Unfortunately, most teams roll their own variant of the `dir.proj` file solution as their build becomes larger and larger. Xamarin.Form libraries, however, are born needing dozens of projects in order to generate the zoo of binaries needed for each supported platform. In this case, it makes sense to invest in a generalized solution which can be packaged up and reused by Xamarin.Forms library authors. Nuget seemed natural distribution vehicle but executing a `nuget restore` to pull down msbuild files felt wrong. So `lfx`.
 
 # License
 The MIT License (MIT)
