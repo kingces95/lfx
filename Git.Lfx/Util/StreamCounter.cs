@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Git.Lfs {
+namespace Git.Lfx {
 
     public sealed class StreamCounter : Stream {
         private readonly Stream m_stream;

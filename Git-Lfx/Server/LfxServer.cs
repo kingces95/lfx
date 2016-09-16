@@ -3,60 +3,60 @@ using System.Net;
 using System.Linq;
 using System.IO;
 using Newtonsoft.Json;
-using Git.Lfs.Json;
+using Git.Lfx.Json;
 
 namespace Lfx {
 
-    public class LfsServer {
+    public class LfxServer {
         public string m_url;
         public string m_downloadUrl;
         public string m_uploadUrl;
 
-        public LfsServer(string url, string downloadUrl, string uploadUrl) {
+        public LfxServer(string url, string downloadUrl, string uploadUrl) {
             m_url = url;
             m_downloadUrl = downloadUrl;
             m_uploadUrl = uploadUrl;
         }
 
-        private LfsJsonAction SendUploadResponse(string oid, int size) {
+        private LfxJsonAction SendUploadResponse(string oid, int size) {
             return null;
-            //return new LfsAction {
+            //return new LfxAction {
             //    href = m_uploadUrl,
             //};
         }
-        private LfsJsonAction SendDownloadResponse(string oid, int size) {
-            return new LfsJsonAction {
+        private LfxJsonAction SendDownloadResponse(string oid, int size) {
+            return new LfxJsonAction {
                 href = m_downloadUrl + oid,
             };
         }
-        private LfsJsonObject SendResponse(LfsJsonOperation operation, LfsJsonObject lfsObject) {
-            var oid = lfsObject.oid;
-            var size = lfsObject.size;
-            var upload = operation == LfsJsonOperation.Upload ? SendUploadResponse(oid, size) : null;
-            var download = operation == LfsJsonOperation.Download ? SendDownloadResponse(oid, size) : null;
+        private LfxJsonObject SendResponse(LfxJsonOperation operation, LfxJsonObject lfxObject) {
+            var oid = lfxObject.oid;
+            var size = lfxObject.size;
+            var upload = operation == LfxJsonOperation.Upload ? SendUploadResponse(oid, size) : null;
+            var download = operation == LfxJsonOperation.Download ? SendDownloadResponse(oid, size) : null;
 
-            return new LfsJsonObject {
+            return new LfxJsonObject {
                 oid = oid,
                 size = size,
-                actions = new LfsJsonActions {
+                actions = new LfxJsonActions {
                     upload = upload,
                     download = download
                 }
             };
         }
-        private LfsJsonOperation DeserializeOperation(string jsonOperation) {
+        private LfxJsonOperation DeserializeOperation(string jsonOperation) {
             jsonOperation = jsonOperation.ToLower();
-            var operation = jsonOperation == "upload" ? LfsJsonOperation.Upload :
-                jsonOperation == "download" ? LfsJsonOperation.Download :
-                LfsJsonOperation.Unknown;
-            if (operation == LfsJsonOperation.Unknown)
-                throw new Exception($"Unknown lfs operation '{jsonOperation}'.");
+            var operation = jsonOperation == "upload" ? LfxJsonOperation.Upload :
+                jsonOperation == "download" ? LfxJsonOperation.Download :
+                LfxJsonOperation.Unknown;
+            if (operation == LfxJsonOperation.Unknown)
+                throw new Exception($"Unknown lfx operation '{jsonOperation}'.");
             return operation;
         }
-        private LfsJsonResponse SendResponse(LfsJsonRequest lfsRequest) {
-            var operation = DeserializeOperation(lfsRequest.operation);
-            return new LfsJsonResponse {
-                objects = lfsRequest.objects
+        private LfxJsonResponse SendResponse(LfxJsonRequest lfxRequest) {
+            var operation = DeserializeOperation(lfxRequest.operation);
+            return new LfxJsonResponse {
+                objects = lfxRequest.objects
                     .Select(o => SendResponse(operation, o)).ToList()
             };
         }
@@ -72,14 +72,14 @@ namespace Lfx {
             var body = new StreamReader(request.InputStream).ReadToEnd();
             Console.WriteLine(body);
 
-            var lfsResponses = JsonConvert.SerializeObject(
-                SendResponse(JsonConvert.DeserializeObject<LfsJsonRequest>(body)),
+            var lfxResponses = JsonConvert.SerializeObject(
+                SendResponse(JsonConvert.DeserializeObject<LfxJsonRequest>(body)),
                 Formatting.Indented
             );
 
-            Console.WriteLine(lfsResponses);
+            Console.WriteLine(lfxResponses);
 
-            return lfsResponses;
+            return lfxResponses;
         }
     }
 }

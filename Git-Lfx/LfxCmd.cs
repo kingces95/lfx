@@ -1,4 +1,4 @@
-﻿using Git.Lfs;
+﻿using Git.Lfx;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,7 +13,7 @@ using System.Text.RegularExpressions;
 
 namespace Lfx {
 
-    public enum LfsCmdSwitches {
+    public enum LfxCmdSwitches {
         Set,
         Unset,
         List, L,
@@ -94,7 +94,7 @@ namespace Lfx {
 
         public void Help() {
             Log("git-lfx/0.0.1 (GitHub; corclr)");
-            Log("git lfs <command> [<args>]");
+            Log("git lfx <command> [<args>]");
             Log();
             Log("Init                   Initialize a new git repository and set lfx filters.");
             Log("    --sample               Adds sample files.");
@@ -129,14 +129,14 @@ namespace Lfx {
         public void Env() {
             ParseNoArgsAndNoSwitches();
 
-            var config = LfsConfig.Load();
+            var config = LfxConfig.Load();
             var gitConfig = config.GitConfig;
 
             Log($"Enlistment={gitConfig.EnlistmentDirectory}");
             Log($"GitDirectory={gitConfig.GitDirectory}");
             Log();
 
-            var cache = LfsBlobCache.Create();
+            var cache = LfxBlobCache.Create();
             var level = 1;
             Log("BlobCache:");
             while (cache != null) {
@@ -147,12 +147,12 @@ namespace Lfx {
             Log();
 
             Log("Config:");
-            Log($"  {LfsConfigFile.CleanFilterId}={gitConfig[LfsConfigFile.CleanFilterId]}");
-            Log($"  {LfsConfigFile.SmudgeFilterId}={gitConfig[LfsConfigFile.SmudgeFilterId]}");
-            Log($"  {LfsConfigFile.TypeId}={gitConfig[LfsConfigFile.TypeId]}");
-            Log($"  {LfsConfigFile.UrlId}={gitConfig[LfsConfigFile.UrlId]}");
-            Log($"  {LfsConfigFile.PatternId}={gitConfig[LfsConfigFile.PatternId]}");
-            Log($"  {LfsConfigFile.ArchiveHintId}={gitConfig[LfsConfigFile.ArchiveHintId]}");
+            Log($"  {LfxConfigFile.CleanFilterId}={gitConfig[LfxConfigFile.CleanFilterId]}");
+            Log($"  {LfxConfigFile.SmudgeFilterId}={gitConfig[LfxConfigFile.SmudgeFilterId]}");
+            Log($"  {LfxConfigFile.TypeId}={gitConfig[LfxConfigFile.TypeId]}");
+            Log($"  {LfxConfigFile.UrlId}={gitConfig[LfxConfigFile.UrlId]}");
+            Log($"  {LfxConfigFile.PatternId}={gitConfig[LfxConfigFile.PatternId]}");
+            Log($"  {LfxConfigFile.ArchiveHintId}={gitConfig[LfxConfigFile.ArchiveHintId]}");
             Log();
 
             Log("Config Files:");
@@ -171,23 +171,23 @@ namespace Lfx {
             var args = Parse(
                 maxArgs: 0,
                 switchInfo: GitCmdSwitchInfo.Create(
-                    LfsCmdSwitches.List,
-                    LfsCmdSwitches.L,
-                    LfsCmdSwitches.Unset,
-                    LfsCmdSwitches.Set
+                    LfxCmdSwitches.List,
+                    LfxCmdSwitches.L,
+                    LfxCmdSwitches.Unset,
+                    LfxCmdSwitches.Set
                 )
             );
 
-            if (args.IsSet(LfsCmdSwitches.List, LfsCmdSwitches.L)) {
+            if (args.IsSet(LfxCmdSwitches.List, LfxCmdSwitches.L)) {
                 Git($"config --show-origin --get-regex filter.lfx.*");
             }
 
-            else if (args.IsSet(LfsCmdSwitches.Unset)) {
+            else if (args.IsSet(LfxCmdSwitches.Unset)) {
                 Git($"config --unset-all filter.lfx.clean");
                 Git($"config --unset-all filter.lfx.smudge");
             }
 
-            else if (args.IsSet(LfsCmdSwitches.Set)) {
+            else if (args.IsSet(LfxCmdSwitches.Set)) {
                 Git($"config --replace-all filter.lfx.clean \"git-lfx clean %f\"");
                 Git($"config --replace-all filter.lfx.smudge \"git-lfx smudge --\"");
             }
@@ -206,13 +206,13 @@ namespace Lfx {
             var args = Parse(
                 maxArgs: 0,
                 switchInfo: GitCmdSwitchInfo.Create(
-                    LfsCmdSwitches.Sample
+                    LfxCmdSwitches.Sample
                 )
             );
             Git("init");
             Lfx("config --set");
 
-            if (!args.IsSet(LfsCmdSwitches.Sample))
+            if (!args.IsSet(LfxCmdSwitches.Sample))
                 return;
 
             File.WriteAllText(".gitattributes", $"* text=auto");
@@ -223,15 +223,15 @@ namespace Lfx {
                     $".gitattributes filter= diff= merge= text=auto",
                     $".gitignore filter= diff= merge= text=auto",
                     $"packages.config filter= diff= merge= text=auto",
-                    $"*.lfsconfig filter= diff= merge= text eol=lf"
+                    $"*.lfxconfig filter= diff= merge= text eol=lf"
                 });
 
                 using (var packages = new TempCurDir("tools")) {
-                    Git($"config -f nuget.exe.lfsconfig --add lfx.type curl");
-                    Git($"config -f nuget.exe.lfsconfig --add lfx.url {nugetUrl}");
+                    Git($"config -f nuget.exe.lfxconfig --add lfx.type curl");
+                    Git($"config -f nuget.exe.lfxconfig --add lfx.url {nugetUrl}");
 
-                    File.WriteAllText("NuGet.exe", LfsPointer.Create(
-                        hash: LfsHash.Parse(nugetHash),
+                    File.WriteAllText("NuGet.exe", LfxPointer.Create(
+                        hash: LfxHash.Parse(nugetHash),
                         count: nugetCount
                     ).AddUrl(nugetUrl.ToUrl()).ToString());
                 }
@@ -239,10 +239,10 @@ namespace Lfx {
                 using (var packages = new TempCurDir("packages")) {
                     File.WriteAllText(".gitignore", $"*.nupkg");
 
-                    Git($"config -f .lfsconfig --add lfx.type archive");
-                    Git($"config -f .lfsconfig --add lfx.url {nugetPkgUrl}");
-                    Git($"config -f .lfsconfig --add lfx.pattern {nugetPkgPattern}");
-                    Git($"config -f .lfsconfig --add lfx.archiveHint {nugetPkgHint}");
+                    Git($"config -f .lfxconfig --add lfx.type archive");
+                    Git($"config -f .lfxconfig --add lfx.url {nugetPkgUrl}");
+                    Git($"config -f .lfxconfig --add lfx.pattern {nugetPkgPattern}");
+                    Git($"config -f .lfxconfig --add lfx.archiveHint {nugetPkgHint}");
 
                     new XElement("packages",
                         new XElement("package",
@@ -278,9 +278,9 @@ namespace Lfx {
             if (!File.Exists(path))
                 throw new Exception($"Expected file '{path}' to exist.");
 
-            LfsPointer pointer;
-            if (!LfsPointer.TryLoad(args[0], out pointer))
-                pointer = LfsPointer.Create(path);
+            LfxPointer pointer;
+            if (!LfxPointer.TryLoad(args[0], out pointer))
+                pointer = LfxPointer.Create(path);
 
             Console.Write(pointer);
         }
@@ -298,9 +298,9 @@ namespace Lfx {
                 pointerStream = File.OpenRead(args[1]);
 
             using (var sr = new StreamReader(pointerStream)) {
-                var pointer = LfsPointer.Parse(sr);
+                var pointer = LfxPointer.Parse(sr);
 
-                var cache = LfsBlobCache.Create();
+                var cache = LfxBlobCache.Create();
                 var blob = cache.Load(pointer);
 
                 using (var contentStream = blob.OpenRead())
@@ -331,7 +331,7 @@ namespace Lfx {
         public void Clear() {
             ParseNoArgsAndNoSwitches();
 
-            var cache = LfsBlobCache.Create();
+            var cache = LfxBlobCache.Create();
             while (cache != null) {
                 var store = cache.Store;
                 Console.WriteLine($"Removing {store.Directory}");
@@ -345,10 +345,10 @@ namespace Lfx {
                 minArgs: 0,
                 maxArgs: 1,
                 switchInfo: GitCmdSwitchInfo.Create(
-                    LfsCmdSwitches.Cached,
-                    LfsCmdSwitches.C,
-                    LfsCmdSwitches.Others,
-                    LfsCmdSwitches.O
+                    LfxCmdSwitches.Cached,
+                    LfxCmdSwitches.C,
+                    LfxCmdSwitches.Others,
+                    LfxCmdSwitches.O
                 )
             );
 
@@ -360,9 +360,9 @@ namespace Lfx {
             }
 
             var flags = default(GitFileFlags);
-            if (args.IsSet(LfsCmdSwitches.Cached, LfsCmdSwitches.C))
+            if (args.IsSet(LfxCmdSwitches.Cached, LfxCmdSwitches.C))
                 flags |= GitFileFlags.Tracked;
-            if (args.IsSet(LfsCmdSwitches.Others, LfsCmdSwitches.O))
+            if (args.IsSet(LfxCmdSwitches.Others, LfxCmdSwitches.O))
                 flags |= GitFileFlags.Untracked;
             if (flags == default(GitFileFlags))
                 flags = GitFileFlags.Tracked;
@@ -376,12 +376,12 @@ namespace Lfx {
                 minArgs: 0,
                 maxArgs: 1,
                 switchInfo: GitCmdSwitchInfo.Create(
-                    LfsCmdSwitches.List,
-                    LfsCmdSwitches.L
+                    LfxCmdSwitches.List,
+                    LfxCmdSwitches.L
                 )
             );
 
-            var listOnly = args.IsSet(LfsCmdSwitches.L, LfsCmdSwitches.List);
+            var listOnly = args.IsSet(LfxCmdSwitches.L, LfxCmdSwitches.List);
 
             string dir = null;
             string filter = null;
@@ -394,9 +394,9 @@ namespace Lfx {
                 .Where(o => o.IsDefined("filter", "lfx"));
 
             foreach (var file in lfxFiles) {
-                LfsPointer pointer;
+                LfxPointer pointer;
                 using (var sr = new StreamReader(file.Path)) {
-                    var canParse = LfsPointer.TryParse(sr, out pointer);
+                    var canParse = LfxPointer.TryParse(sr, out pointer);
                     if (!canParse)
                         continue;
 
@@ -406,7 +406,7 @@ namespace Lfx {
                     }
                 }
 
-                var cache = LfsBlobCache.Create();
+                var cache = LfxBlobCache.Create();
                 var blob = cache.Load(pointer);
 
                 using (var contentStream = blob.OpenRead()) {

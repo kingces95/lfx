@@ -2,10 +2,10 @@
 using System.Collections;
 using System.Collections.Generic;
 
-namespace Git.Lfs {
+namespace Git.Lfx {
 
-    public sealed class LfsConfigFile : IEnumerable<GitConfigValue> {
-        public const string FileName = ".lfsconfig";
+    public sealed class LfxConfigFile : IEnumerable<GitConfigValue> {
+        public const string FileName = ".lfxconfig";
         public const string UrlId = "lfx.url";
         public const string PatternId = "lfx.pattern";
         public const string TypeId = "lfx.type";
@@ -14,13 +14,13 @@ namespace Git.Lfs {
         public const string CleanFilterId = "filter.lfx.clean";
         public const string SmudgeFilterId = "filter.lfx.smudge";
 
-        public static LfsConfigFile Load(string path) {
-            return new LfsConfigFile(GitConfigFile.Load(path));
+        public static LfxConfigFile Load(string path) {
+            return new LfxConfigFile(GitConfigFile.Load(path));
         }
 
         private readonly GitConfigFile m_file;
 
-        internal LfsConfigFile(GitConfigFile file) {
+        internal LfxConfigFile(GitConfigFile file) {
             m_file = file;
         }
 
@@ -29,7 +29,7 @@ namespace Git.Lfs {
 
         public string Url => m_file[UrlId];
         public string Pattern => m_file[PatternId];
-        public LfsPointerType Type => m_file[TypeId].ToEnum<LfsPointerType>(ignoreCase: true);
+        public LfxPointerType Type => m_file[TypeId].ToEnum<LfxPointerType>(ignoreCase: true);
         public string ArchiveHint => m_file[ArchiveHintId];
         public string CleanFilter => m_file[CleanFilterId];
         public string SmudgeFilter => m_file[SmudgeFilterId];

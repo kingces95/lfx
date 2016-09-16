@@ -2,40 +2,40 @@
 using System.IO;
 using System.Text.RegularExpressions;
 
-namespace Git.Lfs {
+namespace Git.Lfx {
 
-    public sealed class LfsConfig {
+    public sealed class LfxConfig {
 
-        public static LfsConfig Load(string path = null) {
+        public static LfxConfig Load(string path = null) {
             if (path != null) {
-                path += LfsConfigFile.FileName;
+                path += LfxConfigFile.FileName;
                 if (File.Exists(path))
                     return Load(GitConfig.Load(path));
 
                 path = path.GetDir();
             }
 
-            var gitConfig = GitConfig.Load(path, LfsConfigFile.FileName);
+            var gitConfig = GitConfig.Load(path, LfxConfigFile.FileName);
             if (gitConfig == null)
                 return null;
 
             return Load(gitConfig);
         }
-        public static LfsConfig Load(GitConfig gitConfig) {
+        public static LfxConfig Load(GitConfig gitConfig) {
             if (gitConfig == null)
                 return null;
-            return new LfsConfig(gitConfig);
+            return new LfxConfig(gitConfig);
         }
 
-        private readonly LfsConfig m_parent;
+        private readonly LfxConfig m_parent;
         private readonly GitConfig m_gitConfig;
-        private readonly LfsConfigFile m_configFile;
+        private readonly LfxConfigFile m_configFile;
 
-        private LfsConfig(GitConfig gitConfig) {
+        private LfxConfig(GitConfig gitConfig) {
             m_gitConfig = gitConfig;
-            m_configFile = new LfsConfigFile(m_gitConfig.ConfigFile);
+            m_configFile = new LfxConfigFile(m_gitConfig.ConfigFile);
             if (m_gitConfig.Parent != null)
-                m_parent = new LfsConfig(m_gitConfig.Parent);
+                m_parent = new LfxConfig(m_gitConfig.Parent);
         }
 
         private GitConfigValue? TryGetValue(string id) {
@@ -46,16 +46,16 @@ namespace Git.Lfs {
         }
 
         public GitConfig GitConfig => m_gitConfig;
-        public LfsConfigFile ConfigFile => m_configFile;
-        public LfsConfig Parent => m_parent;
-        public LfsPointerType Type {
-            get { return m_gitConfig[LfsConfigFile.TypeId].ToEnum<LfsPointerType>(ignoreCase: true); }
+        public LfxConfigFile ConfigFile => m_configFile;
+        public LfxConfig Parent => m_parent;
+        public LfxPointerType Type {
+            get { return m_gitConfig[LfxConfigFile.TypeId].ToEnum<LfxPointerType>(ignoreCase: true); }
         }
-        public string Url => m_gitConfig[LfsConfigFile.UrlId];
-        public bool HasPattern => m_gitConfig.Contains(LfsConfigFile.PatternId);
-        public GitConfigValue Pattern => m_gitConfig.GetValue(LfsConfigFile.PatternId);
-        public bool HasArchiveHint => m_gitConfig.Contains(LfsConfigFile.ArchiveHintId);
-        public GitConfigValue ArchiveHint => m_gitConfig.GetValue(LfsConfigFile.ArchiveHintId);
+        public string Url => m_gitConfig[LfxConfigFile.UrlId];
+        public bool HasPattern => m_gitConfig.Contains(LfxConfigFile.PatternId);
+        public GitConfigValue Pattern => m_gitConfig.GetValue(LfxConfigFile.PatternId);
+        public bool HasArchiveHint => m_gitConfig.Contains(LfxConfigFile.ArchiveHintId);
+        public GitConfigValue ArchiveHint => m_gitConfig.GetValue(LfxConfigFile.ArchiveHintId);
 
         public override string ToString() => m_gitConfig.ToString();
     }

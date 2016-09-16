@@ -7,19 +7,19 @@ using System.Security.Cryptography;
 using System.IO;
 using System.Collections.Immutable;
 
-namespace Git.Lfs
+namespace Git.Lfx
 {
-    public enum LfsPointerType {
+    public enum LfxPointerType {
         Simple,
         Curl,
         Archive
     }
-    public enum LfsHashMethod {
+    public enum LfxHashMethod {
         Sha256 = 1
     }
-    public struct LfsPointer : IEquatable<LfsPointer> {
+    public struct LfxPointer : IEquatable<LfxPointer> {
         public static readonly Uri PreReleaseVersionUri = "https://hawser.github.com/spec/v1".ToUrl();
-        public static readonly Uri Version1Uri = "https://git-lfs.github.com/spec/v1".ToUrl();
+        public static readonly Uri Version1Uri = "https://git-lfx.github.com/spec/v1".ToUrl();
 
         private const string VersionKey = "version";
         private const string OidKey = "oid";
@@ -29,17 +29,17 @@ namespace Git.Lfs
         private const string ArchiveHintKey = "archiveHint";
         private const string OidHashMethodSha256 = "sha256";
 
-        public static LfsPointer Parse(TextReader stream) => Parse(stream.ReadToEnd());
+        public static LfxPointer Parse(TextReader stream) => Parse(stream.ReadToEnd());
         public static bool CanParse(TextReader stream) {
-            LfsPointer pointer;
+            LfxPointer pointer;
             return TryParse(stream, out pointer);
         }
-        public static bool TryParse(TextReader stream, out LfsPointer pointer) {
+        public static bool TryParse(TextReader stream, out LfxPointer pointer) {
             string errorMessage;
             return TryParse(stream, out pointer, out errorMessage);
         }
-        public static bool TryParse(TextReader stream, out LfsPointer pointer, out string errorMessage) {
-            pointer = new LfsPointer();
+        public static bool TryParse(TextReader stream, out LfxPointer pointer, out string errorMessage) {
+            pointer = new LfxPointer();
             errorMessage = null;
 
             var lines = stream.Lines(EndOfLine, 4096);
@@ -55,7 +55,7 @@ namespace Git.Lfs
                 }
 
                 if (string.IsNullOrEmpty(line)) {
-                    errorMessage = "Unexpected blank line encountered in lfs pointer.";
+                    errorMessage = "Unexpected blank line encountered in lfx pointer.";
                     return false;
                 }
 
@@ -69,13 +69,13 @@ namespace Git.Lfs
                 var value = line.Substring(indexOfSpace + 1);
 
                 if (first && key != VersionKey) {
-                    errorMessage = $"Expected first lfs pointer key to be '{VersionKey}' but was '{key}'.";
+                    errorMessage = $"Expected first lfx pointer key to be '{VersionKey}' but was '{key}'.";
                     return false;
                 }
                 first = false;
 
                 if (key.CompareTo(previousKey) <= 0) {
-                    errorMessage = $"Expected lfs pointer '{key}' to come before previous key '{previousKey}'.";
+                    errorMessage = $"Expected lfx pointer '{key}' to come before previous key '{previousKey}'.";
                     return false;
                 }
 
@@ -83,47 +83,47 @@ namespace Git.Lfs
             }
 
             if (!last) {
-                errorMessage = "Expected lfs pointer to end in '\\n\\n'.";
+                errorMessage = "Expected lfx pointer to end in '\\n\\n'.";
                 return false;
             }
 
             return true;
         }
 
-        public static LfsPointer Parse(string text) {
+        public static LfxPointer Parse(string text) {
             string errorMessage;
-            LfsPointer pointer;
+            LfxPointer pointer;
             if (!TryParse(text, out pointer, out errorMessage))
                 throw new Exception(errorMessage);
             return pointer;
         }
         public static bool CanParse(string text) {
-            LfsPointer pointer;
+            LfxPointer pointer;
             return TryParse(text, out pointer);
         }
-        public static bool TryParse(string text, out LfsPointer pointer) {
+        public static bool TryParse(string text, out LfxPointer pointer) {
             string errorMessage;
             return TryParse(text, out pointer, out errorMessage);
         }
-        public static bool TryParse(string text, out LfsPointer pointer, out string errorMessage) {
+        public static bool TryParse(string text, out LfxPointer pointer, out string errorMessage) {
             return TryParse(new StringReader(text), out pointer, out errorMessage);
         }
 
-        public static bool TryLoad(string path, out LfsPointer pointer) {
+        public static bool TryLoad(string path, out LfxPointer pointer) {
             using (var stream = new StreamReader(path))
                 return TryParse(stream, out pointer);
         }
-        public static LfsPointer Load(string path) => Parse(File.ReadAllText(path));
+        public static LfxPointer Load(string path) => Parse(File.ReadAllText(path));
 
-        public static LfsPointer Create(string path) {
-            LfsPointer pointer;
+        public static LfxPointer Create(string path) {
+            LfxPointer pointer;
             using (var file = File.OpenRead(path))
                 pointer = Create(file);
 
-            var config = LfsConfig.Load(path);
+            var config = LfxConfig.Load(path);
 
             // simple
-            if (config.Type == LfsPointerType.Simple)
+            if (config.Type == LfxPointerType.Simple)
                 return pointer;
 
             var url = config.Url;
@@ -138,7 +138,7 @@ namespace Git.Lfs
             }
 
             // curl
-            if (config.Type == LfsPointerType.Curl)
+            if (config.Type == LfxPointerType.Curl)
                 return pointer.AddUrl(url.ToUrl());
 
             var archiveHint = config.ArchiveHint.Value;
@@ -153,18 +153,18 @@ namespace Git.Lfs
             // archive
             return pointer.AddArchive(url.ToUrl(), archiveHint);
         }
-        public static LfsPointer Create(byte[] bytes, int? count = null) {
+        public static LfxPointer Create(byte[] bytes, int? count = null) {
             return Create(new MemoryStream(bytes, 0, count ?? bytes.Length));
         }
-        public static LfsPointer Create(Stream stream) {
+        public static LfxPointer Create(Stream stream) {
             stream = new StreamCounter(stream);
-            var hash = LfsHash.Compute(stream);
+            var hash = LfxHash.Compute(stream);
             var count = stream.Position;
 
             return Create(hash, count);
         }
-        public static LfsPointer Create(LfsHash hash, long count) {
-            var pointer = new LfsPointer();
+        public static LfxPointer Create(LfxHash hash, long count) {
+            var pointer = new LfxPointer();
             pointer.Add(VersionKey, Version1Uri.ToString());
             pointer.Add(SizeKey, $"{count}");
             pointer.Add(OidKey, $"{OidHashMethodSha256}:{hash}");
@@ -205,7 +205,7 @@ namespace Git.Lfs
 
         private ImmutableDictionary<string, string> m__pairs;
 
-        private LfsPointer(LfsPointerType type, ImmutableDictionary<string, string> pairs) {
+        private LfxPointer(LfxPointerType type, ImmutableDictionary<string, string> pairs) {
             m__pairs = pairs.Add(TypeKey, type.ToString().ToLower());
         }
 
@@ -219,40 +219,40 @@ namespace Git.Lfs
         }
         private string Oid => this[OidKey];
 
-        public LfsPointerType Type => this[TypeKey] == null ? LfsPointerType.Simple : (LfsPointerType)
-            Enum.Parse(typeof(LfsPointerType), this[TypeKey], ignoreCase: true);
+        public LfxPointerType Type => this[TypeKey] == null ? LfxPointerType.Simple : (LfxPointerType)
+            Enum.Parse(typeof(LfxPointerType), this[TypeKey], ignoreCase: true);
         public string this[string key] => Pairs.ContainsKey(key) ? Pairs[key] : null;
         public int Size => int.Parse(this[SizeKey]);
-        public LfsHash Hash => LfsHash.Parse(HashValue);
+        public LfxHash Hash => LfxHash.Parse(HashValue);
         public string HashValue => Oid.Substring(Oid.IndexOf(":") + 1);
-        public LfsHashMethod HashMethod => (LfsHashMethod)
-            Enum.Parse(typeof(LfsHashMethod), Oid.Substring(0, Oid.IndexOf(":")), ignoreCase: true);
+        public LfxHashMethod HashMethod => (LfxHashMethod)
+            Enum.Parse(typeof(LfxHashMethod), Oid.Substring(0, Oid.IndexOf(":")), ignoreCase: true);
         public Uri Version => this[VersionKey].ToUrl(); 
         public Uri Url => this[UrlKey] == null ? null : this[UrlKey].ToUrl();
         public string ArchiveHint => this[ArchiveHintKey];
 
-        public LfsPointer AddUrl(Uri url) {
+        public LfxPointer AddUrl(Uri url) {
 
-            if (Type != LfsPointerType.Simple)
+            if (Type != LfxPointerType.Simple)
                 throw new InvalidOperationException();
 
-            var pointer = new LfsPointer(LfsPointerType.Curl, Pairs);
+            var pointer = new LfxPointer(LfxPointerType.Curl, Pairs);
             pointer.Add(UrlKey, $"{url}");
             return pointer;
         }
-        public LfsPointer AddArchive(Uri url, string hint) {
+        public LfxPointer AddArchive(Uri url, string hint) {
 
-            if (Type != LfsPointerType.Simple)
+            if (Type != LfxPointerType.Simple)
                 throw new InvalidOperationException();
 
-            var pointer = new LfsPointer(LfsPointerType.Archive, Pairs);
+            var pointer = new LfxPointer(LfxPointerType.Archive, Pairs);
             pointer.Add(ArchiveHintKey, $"{hint}");
             pointer.Add(UrlKey, $"{url}");
             return pointer;
         }
 
-        public override bool Equals(object obj) => obj is LfsPointer ? Equals((LfsPointer)obj) : false;
-        public bool Equals(LfsPointer other) => 
+        public override bool Equals(object obj) => obj is LfxPointer ? Equals((LfxPointer)obj) : false;
+        public bool Equals(LfxPointer other) => 
             Pairs.OrderBy(o => o.Key).SequenceEqual(other.Pairs.OrderBy(o => o.Key));
         public override int GetHashCode() => 
             Pairs.OrderBy(o => o.Key).Aggregate(0, (a, o) => a ^ o.Value.GetHashCode());

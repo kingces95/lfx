@@ -4,9 +4,9 @@ using System.IO;
 
 namespace Lfx {
 
-    public class LfsServerUpload {
+    public class LfxServerUpload {
 
-        public LfsServerUpload() { }
+        public LfxServerUpload() { }
 
         public string SendResponse(HttpListenerRequest request) {
             Console.WriteLine();

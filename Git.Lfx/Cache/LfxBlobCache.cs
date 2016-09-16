@@ -4,30 +4,30 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace Git.Lfs {
+namespace Git.Lfx {
 
-    public sealed class LfsBlobCache : IEnumerable<LfsBlob> {
-        public const string LfsDirName = @"lfs";
+    public sealed class LfxBlobCache : IEnumerable<LfxBlob> {
+        public const string LfxDirName = @"lfx";
         public const string ObjectsDirName = @"objects";
 
         public static readonly string DefaultUserCacheDir = Path.Combine(
             Environment.GetEnvironmentVariable("APPDATA"),
-            LfsDirName,
+            LfxDirName,
             ObjectsDirName
         ).ToDir();
 
-        public static LfsBlobCache Create(string workingDir = null) {
+        public static LfxBlobCache Create(string workingDir = null) {
             if (workingDir == null)
                 workingDir = Environment.CurrentDirectory;
             workingDir = workingDir.ToDir();
 
             var gitLoader = GitConfig.Load(workingDir);
 
-            // lfsDir -> /.git/lfs/
-            var lfsDir = gitLoader.GitDirectory + LfsDirName.ToDir();
+            // lfxDir -> /.git/lfx/
+            var lfxDir = gitLoader.GitDirectory + LfxDirName.ToDir();
 
-            // objectsDir -> /.git/lfs/objects/
-            var objectsDir = lfsDir + ObjectsDirName.ToDir();
+            // objectsDir -> /.git/lfx/objects/
+            var objectsDir = lfxDir + ObjectsDirName.ToDir();
 
             var cache = Create(
                 objectsDir, // L1 cache
@@ -36,55 +36,55 @@ namespace Git.Lfs {
             return cache;
         }
 
-        public static LfsBlobCache Create(params string[] cacheDirs) {
+        public static LfxBlobCache Create(params string[] cacheDirs) {
             if (cacheDirs == null || cacheDirs.Length == 0)
                 throw new ArgumentException(nameof(cacheDirs));
 
-            return new LfsBlobCache(
+            return new LfxBlobCache(
                 storeDir: cacheDirs.First(),
                 parent: cacheDirs.Length == 1 ? null : 
                     Create(cacheDirs.Skip(1).ToArray())
              );
         }
 
-        private readonly LfsBlobCache m_parentCache;
-        private readonly LfsBlobStore m_store;
+        private readonly LfxBlobCache m_parentCache;
+        private readonly LfxBlobStore m_store;
 
-        public LfsBlobCache(
+        public LfxBlobCache(
             string storeDir, 
-            LfsBlobCache parent = null) {
+            LfxBlobCache parent = null) {
 
-            m_store = new LfsBlobStore(storeDir);
+            m_store = new LfxBlobStore(storeDir);
             m_parentCache = parent;
         }
 
-        public LfsBlobCache Parent => m_parentCache;
-        public LfsBlobStore Store => m_store;
+        public LfxBlobCache Parent => m_parentCache;
+        public LfxBlobStore Store => m_store;
 
-        public LfsBlob Load(LfsPointer pointer) {
-            LfsBlob blob;
+        public LfxBlob Load(LfxPointer pointer) {
+            LfxBlob blob;
             if (TryGet(pointer.Hash, out blob))
                 return blob;
 
-            if (pointer.Type == LfsPointerType.Archive)
+            if (pointer.Type == LfxPointerType.Archive)
                 LoadArchive(pointer.Url);
 
-            else if (pointer.Type == LfsPointerType.Curl)
+            else if (pointer.Type == LfxPointerType.Curl)
                 Load(pointer.Url);
 
             if (!TryGet(pointer.Hash, out blob))
-                throw new Exception($"Expected LfsPointer hash '{pointer.Hash}' to match downloaded content.");
+                throw new Exception($"Expected LfxPointer hash '{pointer.Hash}' to match downloaded content.");
 
             return blob;
         }
-        public LfsBlob Load(Uri url) {
+        public LfxBlob Load(Uri url) {
             if (m_parentCache != null) 
                 return m_store.Add(m_parentCache.Load(url));
 
             using (var tempFile = url.DownloadToTempFile())
                 return m_store.Add(tempFile);
         }
-        public IEnumerable<LfsBlob> LoadArchive(Uri url) {
+        public IEnumerable<LfxBlob> LoadArchive(Uri url) {
             if (m_parentCache != null) 
                 return m_parentCache.LoadArchive(url).Select(o => m_store.Add(o)).ToList();
 
@@ -92,14 +92,14 @@ namespace Git.Lfs {
                 return tempFiles.Select(o => m_store.Add(o)).ToList();
         }
 
-        public bool Promote(LfsHash hash) {
-            LfsBlob blob;
+        public bool Promote(LfxHash hash) {
+            LfxBlob blob;
             return TryGet(hash, out blob);
         }
-        public bool TryGet(LfsHash hash, out LfsBlob blob) {
+        public bool TryGet(LfxHash hash, out LfxBlob blob) {
 
             // try local store
-            blob = default(LfsBlob);
+            blob = default(LfxBlob);
             if (m_store.TryGet(hash, out blob))
                 return true;
 
@@ -108,7 +108,7 @@ namespace Git.Lfs {
                 return false;
 
             // try parent store
-            LfsBlob parentBlob;
+            LfxBlob parentBlob;
             if (!m_parentCache.TryGet(hash, out parentBlob))
                 return false;
 
@@ -117,7 +117,7 @@ namespace Git.Lfs {
             return true;
         }
 
-        public IEnumerator<LfsBlob> GetEnumerator() {
+        public IEnumerator<LfxBlob> GetEnumerator() {
             // promote parent blobs to child
             if (m_parentCache != null) {
                 foreach (var blob in m_parentCache)

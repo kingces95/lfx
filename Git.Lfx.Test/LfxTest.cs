@@ -1,11 +1,11 @@
-﻿using Git.Lfs;
+﻿using Git.Lfx;
 using NUnit.Framework;
 using System;
 using System.IO;
 
-namespace Git.Lfs.Test {
+namespace Git.Lfx.Test {
 
-    public class LfsTest
+    public class LfxTest
     {
         public static readonly string Nl = Environment.NewLine;
         public static readonly string Tab = "\t";

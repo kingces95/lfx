@@ -3,28 +3,28 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace Git.Lfs {
+namespace Git.Lfx {
 
-    public struct LfsBlob : IEquatable<LfsBlob> {
+    public struct LfxBlob : IEquatable<LfxBlob> {
         private const int ShortHashLength = 8;
 
-        private readonly LfsBlobStore m_store;
-        private readonly LfsHash m_hash;
+        private readonly LfxBlobStore m_store;
+        private readonly LfxHash m_hash;
         private readonly string m_file;
 
-        internal LfsBlob(LfsBlobStore store, LfsHash hash, string path) {
+        internal LfxBlob(LfxBlobStore store, LfxHash hash, string path) {
             m_store = store;
             m_hash = hash;
             m_file = path;
         }
 
-        public LfsBlobStore Store => m_store;
-        public LfsHash Hash => m_hash;
+        public LfxBlobStore Store => m_store;
+        public LfxHash Hash => m_hash;
         public string Path => m_file.ToString();
         public Stream OpenRead() => File.OpenRead(Path);
 
-        public override bool Equals(object obj) => obj is LfsBlob ? Equals((LfsBlob)obj) : false;
-        public bool Equals(LfsBlob other) => m_file.EqualPath(other.m_file);
+        public override bool Equals(object obj) => obj is LfxBlob ? Equals((LfxBlob)obj) : false;
+        public bool Equals(LfxBlob other) => m_file.EqualPath(other.m_file);
         public override int GetHashCode() => Path.GetHashCode();
         public override string ToString() => $"{Hash.ToString().Substring(0, ShortHashLength)}: {Path}";
     }

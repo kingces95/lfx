@@ -6,30 +6,30 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Git.Lfs.Test {
+namespace Git.Lfx.Test {
 
-    public abstract class LfsPointerTest {
-        public static LfsPointer CreatePointer(
+    public abstract class LfxPointerTest {
+        public static LfxPointer CreatePointer(
             string hashValue,
             int size,
-            LfsPointerType? type = null,
+            LfxPointerType? type = null,
             Uri url = null,
             string hint = null) {
 
             var pointerText = CreatePointerText(
-                Version, LfsHashMethod.Sha256,
+                Version, LfxHashMethod.Sha256,
                 hashValue, size,
                 type, url, hint
             );
 
-            return LfsPointer.Parse(pointerText);
+            return LfxPointer.Parse(pointerText);
         }
         public static string CreatePointerText(
             Uri version,
-            LfsHashMethod hashMethod,
+            LfxHashMethod hashMethod,
             string hashValue,
             int size,
-            LfsPointerType? type = null,
+            LfxPointerType? type = null,
             Uri url = null,
             string hint = null) {
 
@@ -63,12 +63,12 @@ namespace Git.Lfs.Test {
             }.Where(o => o != null).ToArray());
         }
 
-        public static readonly Uri Version = LfsPointer.Version1Uri;
-        public static readonly LfsHashMethod Method = LfsHashMethod.Sha256;
-        public static readonly string Content = LfsHashTest.Content;
-        public static readonly string HashValue = LfsHashTest.HashValue;
+        public static readonly Uri Version = LfxPointer.Version1Uri;
+        public static readonly LfxHashMethod Method = LfxHashMethod.Sha256;
+        public static readonly string Content = LfxHashTest.Content;
+        public static readonly string HashValue = LfxHashTest.HashValue;
         public static readonly int ByteOrderMarkLength = 3;
-        public static readonly int Size = LfsHashTest.Content.Length + ByteOrderMarkLength;
+        public static readonly int Size = LfxHashTest.Content.Length + ByteOrderMarkLength;
         public static readonly int OtherSize = 123120;
         public static readonly Uri Url = @"http://file.server.com/foo/bar.file".ToUrl();
         public static readonly string ArchiveHint = "/foo/bar";
@@ -81,36 +81,36 @@ namespace Git.Lfs.Test {
 
         public static readonly string CurlPointerText =
             CreatePointerText(Version, Method, HashValue, Size, 
-                LfsPointerType.Curl, Url);
+                LfxPointerType.Curl, Url);
 
         public static readonly string ArchivePointerText =
             CreatePointerText(Version, Method, HashValue, Size,
-                LfsPointerType.Archive, Url, ArchiveHint);
+                LfxPointerType.Archive, Url, ArchiveHint);
 
-        public static void TestSamplePointer(LfsPointer pointer, LfsPointerType type) {
+        public static void TestSamplePointer(LfxPointer pointer, LfxPointerType type) {
 
-            var pointerText = type == LfsPointerType.Simple ? SimplePointerText :
-                type == LfsPointerType.Curl ? CurlPointerText :
+            var pointerText = type == LfxPointerType.Simple ? SimplePointerText :
+                type == LfxPointerType.Curl ? CurlPointerText :
                 ArchivePointerText;
 
             Assert.AreEqual(type, pointer.Type);
             Assert.AreEqual(Version, pointer.Version);
             Assert.AreEqual(Method, pointer.HashMethod);
             Assert.AreEqual(HashValue, pointer.HashValue);
-            Assert.AreEqual(LfsHash.Parse(HashValue), pointer.Hash);
+            Assert.AreEqual(LfxHash.Parse(HashValue), pointer.Hash);
             Assert.AreEqual(Size, pointer.Size);
 
-            if (type == LfsPointerType.Simple) {
+            if (type == LfxPointerType.Simple) {
                 Assert.AreEqual(null, pointer.Url);
                 Assert.AreEqual(null, pointer.ArchiveHint);
             }
 
-            if (type == LfsPointerType.Curl) {
+            if (type == LfxPointerType.Curl) {
                 Assert.AreEqual(Url, pointer.Url);
                 Assert.AreEqual(null, pointer.ArchiveHint);
             }
 
-            if (type == LfsPointerType.Archive) {
+            if (type == LfxPointerType.Archive) {
                 Assert.AreEqual(Url, pointer.Url);
                 Assert.AreEqual(ArchiveHint, pointer.ArchiveHint);
             }
@@ -125,7 +125,7 @@ namespace Git.Lfs.Test {
                 File.WriteAllText(tempFile, pointer.ToString());
 
                 using (var pointerFile = new StreamReader(tempFile)) {
-                    var pointerRoundTrip = LfsPointer.Parse(pointerFile);
+                    var pointerRoundTrip = LfxPointer.Parse(pointerFile);
                     Assert.IsTrue(pointer.Equals(pointerRoundTrip));
                     Assert.IsTrue(pointer.Equals((object)pointerRoundTrip));
                     Assert.AreEqual(pointer.ToString(), pointerRoundTrip.ToString());
@@ -135,22 +135,22 @@ namespace Git.Lfs.Test {
             }
 
 
-            var otherPointer = LfsPointer.Parse(OtherPointerText);
+            var otherPointer = LfxPointer.Parse(OtherPointerText);
             Assert.AreNotEqual(pointer, otherPointer);
             Assert.AreNotEqual(pointer.GetHashCode(), otherPointer.GetHashCode());
         }
     }
 
     [TestFixture]
-    public sealed class LfsSimplePointerTest : LfsPointerTest {
+    public sealed class LfxSimplePointerTest : LfxPointerTest {
 
         [Test]
         public static void ParseTest() {
 
             var pointerText = SimplePointerText;
-            var pointer = LfsPointer.Parse(pointerText);
+            var pointer = LfxPointer.Parse(pointerText);
 
-            TestSamplePointer(pointer, LfsPointerType.Simple);
+            TestSamplePointer(pointer, LfxPointerType.Simple);
 
             Console.Write(pointer);
         }
@@ -159,33 +159,33 @@ namespace Git.Lfs.Test {
         public static void LoadTest() {
 
             using (var contentFile = new TempFile()) {
-                File.WriteAllText(contentFile, LfsHashTest.Content, Encoding.UTF8);
-                var pointer = LfsPointer.Create(contentFile);
-                TestSamplePointer(pointer, LfsPointerType.Simple);
+                File.WriteAllText(contentFile, LfxHashTest.Content, Encoding.UTF8);
+                var pointer = LfxPointer.Create(contentFile);
+                TestSamplePointer(pointer, LfxPointerType.Simple);
 
                 using (var pointerFile = new TempFile()) {
                     File.WriteAllText(pointerFile, pointer.ToString());
-                    pointer = LfsPointer.Load(pointerFile);
-                    TestSamplePointer(pointer, LfsPointerType.Simple);
+                    pointer = LfxPointer.Load(pointerFile);
+                    TestSamplePointer(pointer, LfxPointerType.Simple);
                 }
             }
         }
     }
 
     [TestFixture]
-    public sealed class LfsCurlPointerTest : LfsPointerTest {
+    public sealed class LfxCurlPointerTest : LfxPointerTest {
 
         [Test]
         public static void ParseTest() {
 
             var pointerText = SimplePointerText;
-            var pointer = LfsPointer.Parse(pointerText);
+            var pointer = LfxPointer.Parse(pointerText);
 
-            var curlPointerParsed = LfsPointer.Parse(CurlPointerText);
-            TestSamplePointer(curlPointerParsed, LfsPointerType.Curl);
+            var curlPointerParsed = LfxPointer.Parse(CurlPointerText);
+            TestSamplePointer(curlPointerParsed, LfxPointerType.Curl);
 
             var curlPointer = pointer.AddUrl(Url);
-            TestSamplePointer(curlPointer, LfsPointerType.Curl);
+            TestSamplePointer(curlPointer, LfxPointerType.Curl);
 
             Assert.AreEqual(curlPointerParsed, curlPointer);
 
@@ -194,19 +194,19 @@ namespace Git.Lfs.Test {
     }
 
     [TestFixture]
-    public sealed class LfsArchivePointerTest : LfsPointerTest {
+    public sealed class LfxArchivePointerTest : LfxPointerTest {
 
         [Test]
         public static void ParseTest() {
 
             var pointerText = SimplePointerText;
-            var pointer = LfsPointer.Parse(pointerText);
+            var pointer = LfxPointer.Parse(pointerText);
 
-            var archivePointerParsed = LfsPointer.Parse(ArchivePointerText);
-            TestSamplePointer(archivePointerParsed, LfsPointerType.Archive);
+            var archivePointerParsed = LfxPointer.Parse(ArchivePointerText);
+            TestSamplePointer(archivePointerParsed, LfxPointerType.Archive);
 
             var archivePointer = pointer.AddArchive(Url, ArchiveHint);
-            TestSamplePointer(archivePointer, LfsPointerType.Archive);
+            TestSamplePointer(archivePointer, LfxPointerType.Archive);
 
             Assert.AreEqual(archivePointerParsed, archivePointer);
 

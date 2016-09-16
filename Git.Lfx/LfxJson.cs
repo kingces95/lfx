@@ -1,17 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
-// https://github.com/github/git-lfs/blob/master/docs/api/v1/http-v1-batch.md
+// https://github.com/github/git-lfx/blob/master/docs/api/v1/http-v1-batch.md
 
-namespace Git.Lfs.Json {
+namespace Git.Lfx.Json {
 
-    public enum LfsJsonOperation {
+    public enum LfxJsonOperation {
         Upload,
         Download,
         Unknown
     }
 
-    public enum LfsJsonCode {
+    public enum LfxJsonCode {
         Success = 200,
 
         ObjectDoesNotExist = 404,
@@ -33,31 +33,31 @@ namespace Git.Lfs.Json {
         BandwidthLimitExceeded = 509
     }
 
-    public sealed class LfsJsonException : Exception {
-        private readonly LfsJsonCode m_code;
+    public sealed class LfxJsonException : Exception {
+        private readonly LfxJsonCode m_code;
         private readonly string m_message;
 
-        public LfsJsonException(LfsJsonCode code, string message = null) {
+        public LfxJsonException(LfxJsonCode code, string message = null) {
             m_code = code;
             m_message = message;
         }
 
-        public LfsJsonError Serialize() {
-            return new LfsJsonError {
+        public LfxJsonError Serialize() {
+            return new LfxJsonError {
                 code = (int)m_code,
                 message = m_message
             };
         }
     }
 
-    public sealed class LfsJsonRequest {
+    public sealed class LfxJsonRequest {
         [JsonProperty(Required = Required.Always)]
         public string operation { get; set; }
 
-        public List<LfsJsonObject> objects { get; set; }
+        public List<LfxJsonObject> objects { get; set; }
     }
-    public sealed class LfsJsonResponse {
-        public List<LfsJsonObject> objects { get; set; }
+    public sealed class LfxJsonResponse {
+        public List<LfxJsonObject> objects { get; set; }
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string message { get; set; }
@@ -68,7 +68,7 @@ namespace Git.Lfs.Json {
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string documentation_url { get; set; }
     }
-    public sealed class LfsJsonObject {
+    public sealed class LfxJsonObject {
         [JsonProperty(Required = Required.Always)]
         public string oid { get; set; }
 
@@ -77,28 +77,28 @@ namespace Git.Lfs.Json {
 
         // upload, verfiy, download
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public LfsJsonActions actions { get; set; }
+        public LfxJsonActions actions { get; set; }
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public LfsJsonError error { get; set; }
+        public LfxJsonError error { get; set; }
     }
-    public sealed class LfsJsonActions {
+    public sealed class LfxJsonActions {
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public LfsJsonAction upload { get; set; }
+        public LfxJsonAction upload { get; set; }
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public LfsJsonAction verify { get; set; }
+        public LfxJsonAction verify { get; set; }
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public LfsJsonAction download { get; set; }
+        public LfxJsonAction download { get; set; }
     }
-    public sealed class LfsJsonError {
+    public sealed class LfxJsonError {
         public int code { get; set; }
 
         [JsonProperty(Required = Required.Always)]
         public string message { get; set; }
     }
-    public sealed class LfsJsonAction {
+    public sealed class LfxJsonAction {
         [JsonProperty(Required = Required.Always)]
         public string href { get; set; }
 

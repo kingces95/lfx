@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using IOPath = System.IO.Path;
 
-namespace Git.Lfs {
+namespace Git.Lfx {
 
     public static class Extensions {
         public static void Download(this Uri uri, string file) {
@@ -26,10 +26,10 @@ namespace Git.Lfs {
             }
         }
 
-        public static LfsHash ComputeHash(this string value) => LfsHash.Compute(value);
-        public static LfsHash ComputeHash(this Stream stream) => LfsHash.Compute(stream);
-        public static LfsHash ComputeHash(this byte[] bytes) => LfsHash.Compute(bytes);
-        public static LfsHash ComputeHash(this byte[] bytes, int count) => LfsHash.Compute(bytes, count);
+        public static LfxHash ComputeHash(this string value) => LfxHash.Compute(value);
+        public static LfxHash ComputeHash(this Stream stream) => LfxHash.Compute(stream);
+        public static LfxHash ComputeHash(this byte[] bytes) => LfxHash.Compute(bytes);
+        public static LfxHash ComputeHash(this byte[] bytes, int count) => LfxHash.Compute(bytes, count);
 
         public static T ToEnum<T>(this string value, bool ignoreCase = false) {
             if (value == null)

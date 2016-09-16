@@ -8,7 +8,7 @@ using System.Text;
 
 namespace Lfx {
 
-    public class LfsServerDownload {
+    public class LfxServerDownload {
         private Dictionary<string, string> m_filesByHash;
 
         private static string ComputHash(string path) {
@@ -25,7 +25,7 @@ namespace Lfx {
             return hash;
         }
 
-        public LfsServerDownload(string rootDir) {
+        public LfxServerDownload(string rootDir) {
             m_filesByHash = (
                 from file in Directory.GetFiles(rootDir, "*", SearchOption.AllDirectories)
                 orderby file descending

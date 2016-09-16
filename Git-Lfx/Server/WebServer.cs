@@ -52,7 +52,7 @@ namespace Lfx {
                 ctx.Response.ContentLength64 = buf.Length;
 
                 ctx.Response.SendChunked = false;
-                ctx.Response.ContentType = "application/vnd.git-lfs+json";
+                ctx.Response.ContentType = "application/vnd.git-lfx+json";
                 ctx.Response.StatusCode = 200;
                 ctx.Response.AddHeader("status", "200");
 

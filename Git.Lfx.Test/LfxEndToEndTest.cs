@@ -1,4 +1,4 @@
-﻿using Git.Lfs.Test;
+﻿using Git.Lfx.Test;
 using Lfx;
 using NUnit.Framework;
 using System;
@@ -6,10 +6,10 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Xml.Linq;
 
-namespace Git.Lfs.Live.Test {
+namespace Git.Lfx.Live.Test {
 
     [TestFixture]
-    public class EndToEndTest : LfsTest {
+    public class EndToEndTest : LfxTest {
         public const string ToolsDirName = "tools";
         public const string SourceDirName = "source";
         public const string TargetDirName = "target";
@@ -20,14 +20,14 @@ namespace Git.Lfs.Live.Test {
         public const string XId = "id";
         public const string XVersion = "version";
 
-        public const string LfsConfig = LfsConfigFile.FileName;
+        public const string LfxConfig = LfxConfigFile.FileName;
         public const string GitAttributes = ".gitattributes";
         public const string GitIgnore = ".gitignore";
 
         public const string lfx = "lfx";
         public static readonly string NugetGitAttributes = 
             $"*/** filter={lfx} diff={lfx} merge={lfx} -text" + Nl +
-            $"{LfsConfigFile.FileName} eol=lf";
+            $"{LfxConfigFile.FileName} eol=lf";
         public static readonly string NugetGitIgnore = "*.nupkg";
         public static readonly string NugetType = "archive";
         public static readonly string NugetUrl = @"http://nuget.org/api/v2/package/${id}/${ver}";
@@ -63,7 +63,7 @@ namespace Git.Lfs.Live.Test {
                     // copy git-lfx.exe and libs to tools dir
                     typeof(ImmutableDictionary).Assembly.Location.CopyToDir();
                     typeof(GitCmd).Assembly.Location.CopyToDir();
-                    typeof(LfsCmd).Assembly.Location.CopyToDir();
+                    typeof(LfxCmd).Assembly.Location.CopyToDir();
                     typeof(Program).Assembly.Location.CopyToDir();
 
                     // add tools dir to path
@@ -82,7 +82,7 @@ namespace Git.Lfs.Live.Test {
 
                     Git($"config --add filter.lfx.clean \"git-lfx clean %f\"");
                     Git($"config --add filter.lfx.smudge \"git-lfx smudge --\"");
-                    Git($"config --get-regex .*lfs.*");
+                    Git($"config --get-regex .*lfx.*");
 
                     PackagesConfig.Save("packages.config");
 
@@ -93,13 +93,13 @@ namespace Git.Lfs.Live.Test {
                         var gitConfig = GitConfig.Load();
                         Assert.AreEqual(env.ToString(), gitConfig.EnlistmentDirectory);
 
-                        Git($"config -f {LfsConfig} --add {LfsConfigFile.TypeId} {NugetType}");
-                        Git($"config -f {LfsConfig} --add {LfsConfigFile.UrlId} {NugetUrl}");
-                        Git($"config -f {LfsConfig} --add {LfsConfigFile.PatternId} {NugetRegex}");
-                        Git($"config -f {LfsConfig} --add {LfsConfigFile.ArchiveHintId} {NugetHint}");
+                        Git($"config -f {LfxConfig} --add {LfxConfigFile.TypeId} {NugetType}");
+                        Git($"config -f {LfxConfig} --add {LfxConfigFile.UrlId} {NugetUrl}");
+                        Git($"config -f {LfxConfig} --add {LfxConfigFile.PatternId} {NugetRegex}");
+                        Git($"config -f {LfxConfig} --add {LfxConfigFile.ArchiveHintId} {NugetHint}");
 
-                        Console.WriteLine($"{LfsConfig}: {Path.GetFullPath(LfsConfig)}:");
-                        Console.WriteLine(File.ReadAllText(LfsConfig));
+                        Console.WriteLine($"{LfxConfig}: {Path.GetFullPath(LfxConfig)}:");
+                        Console.WriteLine(File.ReadAllText(LfxConfig));
                     }
 
                     Nuget($"restore -packagesDirectory packages");

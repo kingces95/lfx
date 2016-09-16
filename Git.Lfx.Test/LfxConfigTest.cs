@@ -1,20 +1,20 @@
-﻿using Git.Lfs;
+﻿using Git.Lfx;
 using NUnit.Framework;
 using System;
 using System.IO;
 
-namespace Git.Lfs.Test {
+namespace Git.Lfx.Test {
 
     [TestFixture]
-    public static class LfsConfigTest
+    public static class LfxConfigTest
     {
         [Test]
         public static void ArchiveLoadTest() {
             using (var dir = new TempDir()) {
 
                 // write archive config file
-                var configFilePath = dir + LfsConfigFile.FileName;
-                File.WriteAllText(configFilePath, LfsArchiveConfigTest.ConfigFileContent);
+                var configFilePath = dir + LfxConfigFile.FileName;
+                File.WriteAllText(configFilePath, LfxArchiveConfigTest.ConfigFileContent);
 
                 // crate /NUnit.2.6.4
                 var nunitDir = Path.Combine(dir, "NUnit.2.6.4");
@@ -29,13 +29,13 @@ namespace Git.Lfs.Test {
                 var dllName = "NUnit.dll";
                 var subPath = Path.Combine(libDirName, dllName);
                 var nunitDllPath = Path.Combine(nunitDir, subPath);
-                File.WriteAllText(nunitDllPath, LfsPointerTest.Content);
+                File.WriteAllText(nunitDllPath, LfxPointerTest.Content);
 
                 // load file
-                var pointer = LfsPointer.Create(nunitDllPath);
+                var pointer = LfxPointer.Create(nunitDllPath);
 
                 // check regex expansions
-                Assert.AreEqual(LfsPointerType.Archive, pointer.Type);
+                Assert.AreEqual(LfxPointerType.Archive, pointer.Type);
                 Assert.AreEqual(
                     "http://nuget.org/api/v2/package/NUnit/2.6.4", 
                     pointer.Url.ToString()
@@ -49,22 +49,22 @@ namespace Git.Lfs.Test {
             using (var dir = new TempDir()) {
 
                 // write curl config file
-                var configFilePath = dir + LfsConfigFile.FileName;
-                File.WriteAllText(configFilePath, LfsCurlConfigTest.ConfigFileContent);
+                var configFilePath = dir + LfxConfigFile.FileName;
+                File.WriteAllText(configFilePath, LfxCurlConfigTest.ConfigFileContent);
 
                 // create /tools/nuget/
                 var nugetDir = Path.Combine(dir, "tools", "nuget");
                 Directory.CreateDirectory(nugetDir);
 
                 // write dummy content to /tools/nuget/nuget.exe
-                var lfsFilePath = Path.Combine(nugetDir, "nuget.exe");
-                File.WriteAllText(lfsFilePath, LfsPointerTest.Content);
+                var lfxFilePath = Path.Combine(nugetDir, "nuget.exe");
+                File.WriteAllText(lfxFilePath, LfxPointerTest.Content);
 
                 // load file
-                var pointer = LfsPointer.Create(lfsFilePath);
+                var pointer = LfxPointer.Create(lfxFilePath);
 
                 // check regex expansions
-                Assert.AreEqual(LfsPointerType.Curl, pointer.Type);
+                Assert.AreEqual(LfxPointerType.Curl, pointer.Type);
                 Assert.AreEqual(
                     "https://dist.nuget.org/win-x86-commandline/v3.4.4/nuget.exe",
                     pointer.Url.ToString()
