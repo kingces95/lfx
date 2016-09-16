@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "git-lfx", "Git.LfsEx\git-lfx.csproj", "{8FF39B3F-BABE-4CD8-9CCD-43B74786DBDB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "git-lfx", "Git-Lfx\git-lfx.csproj", "{8FF39B3F-BABE-4CD8-9CCD-43B74786DBDB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Git.Lfs.Test", "Git.Lfs.Test\Git.Lfs.Test.csproj", "{96B028A6-8644-4D03-83EF-55088FB00D21}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Git.Lfx.Test", "Git.Lfx.Test\Git.Lfx.Test.csproj", "{96B028A6-8644-4D03-83EF-55088FB00D21}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Git.Lfs", "Git.Lfs\Git.Lfs.csproj", "{15008F38-1C88-422E-9D87-FEF319307DD0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Git.Lfx", "Git.Lfx\Git.Lfx.csproj", "{15008F38-1C88-422E-9D87-FEF319307DD0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Git", "Git\Git.csproj", "{AF1CF4F6-5B83-4B81-A290-EC939403055E}"
 EndProject

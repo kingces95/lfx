@@ -4,15 +4,17 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{15008F38-1C88-422E-9D87-FEF319307DD0}</ProjectGuid>
-    <OutputType>Library</OutputType>
+    <ProjectGuid>{8FF39B3F-BABE-4CD8-9CCD-43B74786DBDB}</ProjectGuid>
+    <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Git.Lfs</RootNamespace>
-    <AssemblyName>Git.Lfs</AssemblyName>
+    <RootNamespace>Git.Lfx</RootNamespace>
+    <AssemblyName>git-lfx</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -20,9 +22,9 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
@@ -30,6 +32,9 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <PropertyGroup>
+    <RunPostBuildEvent>Always</RunPostBuildEvent>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Newtonsoft.Json, Version=9.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
@@ -42,6 +47,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="System.Core" />
+    <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -51,29 +57,34 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Cache\LfsBlob.cs" />
-    <Compile Include="Cache\LfsBlobStore.cs" />
-    <Compile Include="Config\LfsConfig.cs" />
-    <Compile Include="LfsCmd.cs" />
-    <Compile Include="Config\LfsConfigFile.cs" />
-    <Compile Include="LfsHash.cs" />
-    <Compile Include="LfsJson.cs" />
-    <Compile Include="Cache\LfsBlobCache.cs" />
-    <Compile Include="LfsPointer.cs" />
+    <None Include="Server\response.json" />
+    <Compile Include="LfxCmd.cs" />
+    <Compile Include="Server\LfxServerUpload.cs" />
+    <Compile Include="Server\LfxServerDownload.cs" />
+    <Compile Include="Server\LfxServer.cs" />
+    <Compile Include="Server\WebServer.cs" />
+    <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Util\Extensions.cs" />
-    <Compile Include="Util\StreamCounter.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="App.config" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Git.Lfx\Git.Lfx.csproj">
+      <Project>{15008f38-1c88-422e-9d87-fef319307dd0}</Project>
+      <Name>Git.Lfx</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Git\Git.csproj">
       <Project>{af1cf4f6-5b83-4b81-a290-ec939403055e}</Project>
       <Name>Git</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PreBuildEvent>
+    </PreBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

@@ -7,8 +7,8 @@
     <ProjectGuid>{96B028A6-8644-4D03-83EF-55088FB00D21}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Git.Lfs.Test</RootNamespace>
-    <AssemblyName>Git.Lfs.Test</AssemblyName>
+    <RootNamespace>Git.Lfx.Test</RootNamespace>
+    <AssemblyName>Git.Lfx.Test</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -50,25 +50,25 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="LfsEndToEndTest.cs" />
-    <Compile Include="LfsBlobCacheTest.cs" />
-    <Compile Include="LfsBlobStoreTest.cs" />
-    <Compile Include="LfsConfigFileTest.cs" />
-    <Compile Include="LfsTest.cs" />
-    <Compile Include="LfsConfigTest.cs" />
-    <Compile Include="LfsHashTest.cs" />
-    <Compile Include="LfsPointerTest.cs" />
+    <Compile Include="LfxEndToEndTest.cs" />
+    <Compile Include="LfxBlobCacheTest.cs" />
+    <Compile Include="LfxBlobStoreTest.cs" />
+    <Compile Include="LfxConfigFileTest.cs" />
+    <Compile Include="LfxTest.cs" />
+    <Compile Include="LfxConfigTest.cs" />
+    <Compile Include="LfxHashTest.cs" />
+    <Compile Include="LfxPointerTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Git.Lfs\Git.Lfs.csproj">
+    <ProjectReference Include="..\Git.Lfx\Git.Lfx.csproj">
       <Project>{15008f38-1c88-422e-9d87-fef319307dd0}</Project>
-      <Name>Git.Lfs</Name>
+      <Name>Git.Lfx</Name>
     </ProjectReference>
-    <ProjectReference Include="..\Git.LfsEx\git-lfx.csproj">
+    <ProjectReference Include="..\Git-Lfx\git-lfx.csproj">
       <Project>{8ff39b3f-babe-4cd8-9ccd-43b74786dbdb}</Project>
       <Name>git-lfx</Name>
     </ProjectReference>
