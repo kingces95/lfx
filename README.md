@@ -9,19 +9,30 @@ Before any of the following quickstart scenarios, install `git-lfx`:
 1. Install [`chocolatey`](https://chocolatey.org/)
 2. `choco install git-lfx`
 3. relaunch `cmd.exe`
-4. `git-lfx` # should dump help
+4. `git-lfx` _verify installation; dump help_
 
-####Sync a repository with `lfx` pointers:
-1. `git lfx clone <url>`
+####Sync a repository and restore `lfx` pointers automatically:
+1. `git lfx clone lfx-sample`
+2. `git lfx files` _list files lfx downloaded_
+
+####Sync a repository and restore `lfx` pointers manually:
+1. `git clone lfx-sample`
+2. `git lfx files` _list files `lfx` will download_
+3. `type dls\tools\nuget.exe` _observe the binary content has been replaced with a `lfx` pointer_
+4. `git lfx checkout` _restore binary content for `lfx` tracked files_
+5. `dir dls\tools\nuget.exe` _observe the binary content is restored_ 
 
 ####Initialize a repository with `lfx` support:
 1. `git lfx init`
 
-####Add\Remove `lfx` filters to an existing repository:
-1. `git lfx config --set` 
-2. `git lfx config --list`
-3. update\add `.gitattributes` and `.lfxconfig`, see below for examples
-3. `git lfx config --unset`
+####Add\Remove `lfx` filters to\from an existing repository:
+1. `git init`
+3. `git lfx config --list` _observe lack of `filter.lfx.*` config settings_ 
+2. `git lfx config --set` _add `lfx` filter config settings_
+3. `git lfx config --list` _observe addition of `filter.lfx.*` config settings_ 
+4. _update `.gitattributes` to specify files using `lfx` filter_ (see below)
+5. _add `.lfxconfig` to specify how how pointers are constructed as a function of file path_ (see below)
+5. `git lfx config --unset`
 
 ####Initialize a repository with `lfx` support + samples + exploration:
 1. `git lfx init --samples`
@@ -35,7 +46,7 @@ Before any of the following quickstart scenarios, install `git-lfx`:
 9. `git lfx show dls\packages\NUnit.2.6.4\lib\nunit.framework.dll` _dump example of content actually staged for commit_
 10. `git commit -m "Add nunit v2.6.4"` _commit `lfx` pointers_
 
-## History (The long version)
+## History
 In the beginning, there was darkness, then light, then centralized source control systems (e.g. `TFS`) which stored all the dependencies necessary to build. Building was a simple matter of syncing the repository, build tools and all, and building. It was good. And worked well for those teams that could afford the time and energy of maintaining a TFS server. However, it didn't work so well for those who couldn't or for open source projects with thousands of loosely associated collaborators (e.g. Linux). They needed a different solution.
 
 So, banished from centralized source control, along came distributed version control (e.g. `GIT`) which solved those pesky server maintenance issues by not having a central server at all. Instead the entire history of the repository was distributed to everyone. However, this solution came at with a cost. Distributing the history of every binary was prohibitively expensive and so the binaries had to be removed. And so, in this new world, a new step to restore the removed binaries was introduced after syncing the source but before building (e.g. `nuget restore`). It was ok. 
@@ -70,3 +81,4 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 [1]: [https://github.com/dotnet/coreclr/blob/master/dir.props]
 [2]: [https://github.com/dotnet/corefx/blob/master/dir.props]
 [3]: [http://blog.davidebbo.com/2014/01/the-right-way-to-restore-nuget-packages.html]
+[4]: [https://github.com/dotnet/corefx/blob/master/dir.props]
