@@ -8,42 +8,42 @@ Before any of the following quickstart scenarios, install `git-lfx`:
 
 1. Install [`chocolatey`](https://chocolatey.org/)
 2. `choco install git-lfx`
-3. relaunch `cmd.exe`
-4. `git-lfx` _verify installation; dump help_
+  3. relaunch `cmd.exe`
+  4. `git-lfx` _verify installation; dump help_
 
 ####Sync a repository and restore `lfx` pointers automatically:
 1. `git lfx clone lfx-sample`
-2. `git lfx files` _list files lfx downloaded_
+  2. `git lfx files` _list files lfx downloaded_
 
 ####Sync a repository and restore `lfx` pointers manually:
 1. `git clone lfx-sample`
-2. `git lfx files` _list files `lfx` will download_
-3. `type dls\tools\nuget.exe` _observe the binary content has been replaced with a `lfx` pointer_
+  2. `git lfx files` _list files `lfx` will download_
+  3. `type dls\tools\nuget.exe` _observe the binary content has been replaced with a `lfx` pointer_
 4. `git lfx checkout` _restore binary content for `lfx` tracked files_
-5. `dir dls\tools\nuget.exe` _observe the binary content is restored_ 
+  5. `dir dls\tools\nuget.exe` _observe the binary content is restored_ 
 
 ####Initialize a repository with `lfx` support:
 1. `git lfx init`
 
 ####Add\Remove `lfx` filters to\from an existing repository:
 1. `git init`
-3. `git lfx config --list` _observe lack of `filter.lfx.*` config settings_ 
+  3. `git lfx config --list` _observe lack of `filter.lfx.*` config settings_ 
 2. `git lfx config --set` _add `lfx` filter config settings_
-3. `git lfx config --list` _observe addition of `filter.lfx.*` config settings_ 
+  3. `git lfx config --list` _observe addition of `filter.lfx.*` config settings_ 
 4. _update `.gitattributes` to specify files using `lfx` filter_ (see below)
 5. _add `.lfxconfig` to specify how how pointers are constructed as a function of file path_ (see below)
-5. `git lfx config --unset`
+5. `git lfx config --unset` _clear filters_
 
 ####Initialize a repository with `lfx` support + samples + exploration:
 1. `git lfx init --samples`
-2. `git lfx env`
-3. `type dls\tools\NuGet.exe`
-4. `git lfx smudge dls\tools\NuGet.exe > %TEMP%\Nuget.exe` _resolve binary content given `lfx` pointer_
+  2. `git lfx env`
+  3. `type dls\tools\NuGet.exe`
+  4. `git lfx smudge dls\tools\NuGet.exe > %TEMP%\Nuget.exe` _resolve binary content given `lfx` pointer_
 5. `git lfx checkout` _smudge filter replaces `dls\tools\nuget.exe` `lfx` pointer with binary content_
 6. `dls\tools\NuGet.exe restore dls\packages\packages.config -PackagesDirectory dls\packages`
-7. `git lfx clean dls\packages\NUnit.2.6.4\lib\nunit.framework.dll` _generate `lfx` pointer given binary_
+  7. `git lfx clean dls\packages\NUnit.2.6.4\lib\nunit.framework.dll` _generate `lfx` pointer given binary_
 8. `git add .` _clean filter converts nuget package file content to `lfx` pointers_
-9. `git lfx show dls\packages\NUnit.2.6.4\lib\nunit.framework.dll` _dump example of content actually staged for commit_
+  9. `git lfx show dls\packages\NUnit.2.6.4\lib\nunit.framework.dll` _dump example of content actually staged for commit_
 10. `git commit -m "Add nunit v2.6.4"` _commit `lfx` pointers_
 
 ## History
