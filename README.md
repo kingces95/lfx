@@ -67,17 +67,6 @@ Builds composed of multipule C# projects often suffer from duplication of common
 
 Unfortunately, most teams roll their own variant of the `dir.proj` file solution as their build becomes larger and larger. Xamarin.Form libraries, however, are born needing dozens of projects in order to generate the zoo of binaries needed for each supported platform. In this case, it makes sense to invest in a generalized solution which can be packaged up and reused by Xamarin.Forms library authors. Nuget seemed natural distribution vehicle but executing a `nuget restore` to pull down msbuild files felt wrong. So `lfx`.
 
-# License
-The MIT License (MIT)
-Copyright (c) 2016, Christopher E. S. King
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-
 [1]: [https://github.com/dotnet/coreclr/blob/master/dir.props]
 [2]: [https://github.com/dotnet/corefx/blob/master/dir.props]
 [3]: [http://blog.davidebbo.com/2014/01/the-right-way-to-restore-nuget-packages.html]

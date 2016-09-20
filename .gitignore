@@ -1,5 +1,6 @@
 .vs
 *.user
+*.nupkg
 bin
 obj
 packages

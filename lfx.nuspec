@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>git-lfx</id>
+    <version>0.1.0</version>
+    <owners>kingces95</owners>
+    <title>git-lfx</title>
+    <authors>kingces95</authors>
+    <projectUrl>https://github.com/kingces95/Lfx</projectUrl>
+    <copyright>2016</copyright>
+    <projectSourceUrl>https://github.com/kingces95/Lfx</projectSourceUrl>
+    <docsUrl>https://github.com/kingces95/Lfx</docsUrl>
+    <mailingListUrl>https://github.com/kingces95/Lfx</mailingListUrl>
+    <bugTrackerUrl>https://github.com/kingces95/Lfx</bugTrackerUrl>
+    <tags>lfx lfs git</tags>
+    <summary>Extension of git-lfs which teaches git to fetch archives</summary>
+    <description>https://github.com/kingces95/lfx</description>
+    <releaseNotes>Premier release.</releaseNotes> 
+    <dependencies/>
+  </metadata>
+  <files>
+    <file src="Git-Lfx\bin\Release\git-lfx.exe" target="tools" />
+    <file src="Git-Lfx\bin\Release\git-lfx.exe.config" target="tools" />
+    <file src="Git-Lfx\bin\Release\git.dll" target="tools" />
+    <file src="Git-Lfx\bin\Release\git.lfx.dll" target="tools" />
+    <file src="Git-Lfx\bin\Release\system.collections.immutable.dll" target="tools" />
+  </files>
+</package>
