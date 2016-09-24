@@ -4,17 +4,20 @@
     <id>git-lfx</id>
     <version>0.1.0</version>
     <owners>kingces95</owners>
-    <title>git-lfx</title>
+    <title>git curl extension</title>
     <authors>kingces95</authors>
+    <copyright>Chris King, 2016</copyright>
     <projectUrl>https://github.com/kingces95/Lfx</projectUrl>
-    <copyright>2016</copyright>
     <projectSourceUrl>https://github.com/kingces95/Lfx</projectSourceUrl>
+    <packageSourceUrl>https://github.com/kingces95/Lfx</packageSourceUrl>
+    <iconUrl>http://findicons.com/files/icons/2711/free_icons_for_windows8_metro/64/crown.png</iconUrl>
+    <licenseUrl>https://opensource.org/licenses/MIT</licenseUrl>
     <docsUrl>https://github.com/kingces95/Lfx</docsUrl>
     <mailingListUrl>https://github.com/kingces95/Lfx</mailingListUrl>
     <bugTrackerUrl>https://github.com/kingces95/Lfx</bugTrackerUrl>
     <tags>lfx lfs git</tags>
     <summary>Extension of git-lfs which teaches git to fetch archives</summary>
-    <description>https://github.com/kingces95/lfx</description>
+    <description>Git extension to (1) replace a file before it's pushed with a pointer (url) to a public source and (2) replace a pointer to a file with its content before it's added to the working tree by curling the url found in the pointer. Also supports pointing into and restoring individual files in zip archives (e.g. useful for restoring nuget packages during git fetch). Git-lfx is inspired by git-lfs (see: https://git-lfs.github.com/).</description>
     <releaseNotes>Premier release.</releaseNotes> 
     <dependencies/>
   </metadata>
