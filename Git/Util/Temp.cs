@@ -20,7 +20,12 @@ namespace Git {
             Environment.CurrentDirectory = m_dir;
         }
 
+        public string Path => m_dir;
+
         public void Dispose() {
+            if (!Directory.Exists(m_origCurDir))
+                return;
+
             Environment.CurrentDirectory = m_origCurDir;
         }
 
@@ -41,19 +46,16 @@ namespace Git {
             m_tempCurDir = new TempCurDir(tempDir);
         }
 
-        public string Path => m_tempDir;
+        private void Dispose(bool disposing) {
+            if (disposing)
+                GC.SuppressFinalize(this);
+            //Directory.Delete(m_tempDir, recursive: true);
 
-        public void Dispose() {
-            try {
-                m_tempCurDir.Dispose();
-            } 
-            finally {
-                //Directory.Delete(m_tempDir, recursive: true);
-
-                // Directory.Delete threw "Access Denied" where rmdir worked...
-                Cmd.Execute("cmd.exe", $"/c rmdir /s/q {m_tempDir}");
-            }
+            // Directory.Delete threw "Access Denied" where rmdir worked...
+            Cmd.Execute("cmd.exe", $"/c rmdir /s/q {m_tempDir}");
         }
+
+        public string Path => m_tempDir;
 
         public IEnumerator<string> GetEnumerator() =>
             Directory.GetFiles(m_tempDir, "*", SearchOption.AllDirectories)
@@ -61,6 +63,11 @@ namespace Git {
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         public override string ToString() => Path;
+
+        public void Dispose() {
+            try { m_tempCurDir.Dispose(); } finally { Dispose(true); }
+        }
+        ~TempDir() { Dispose(false); }
     }
     public class TempFile : IDisposable {
         public static implicit operator string(TempFile tempFile) => tempFile.ToString();
@@ -74,9 +81,16 @@ namespace Git {
             m_path = path;
         }
 
+        private void Dispose(bool disposing) {
+            if (disposing)
+                GC.SuppressFinalize(this);
+            File.Delete(m_path);
+        }
+
         public string Path => m_path;
-        public void Dispose() => File.Delete(m_path);
 
         public override string ToString() => Path;
+        public void Dispose()  => Dispose(true); 
+        ~TempFile() { Dispose(false); }
     }
 }

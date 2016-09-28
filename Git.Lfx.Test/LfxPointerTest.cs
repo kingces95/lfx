@@ -54,7 +54,7 @@ namespace Git.Lfx.Test {
 
             return string.Join("\n", new object[] {
                 $"version {version}",
-                hint != null ? $"archiveHint {hint}" : null,
+                hint != null ? $"hint {hint}" : null,
                 $"oid {hashMethod}:{hashValue}",
                 $"size {size}",
                 type != null ? $"type {type}" : null,
@@ -143,6 +143,15 @@ namespace Git.Lfx.Test {
 
     [TestFixture]
     public sealed class LfxSimplePointerTest : LfxPointerTest {
+
+        [Test]
+        public static void ToLowerFirstTest() {
+            Assert.AreEqual("", "".ToLowerFirst());
+            Assert.AreEqual("a", "a".ToLowerFirst());
+            Assert.AreEqual("a", "A".ToLowerFirst());
+            Assert.AreEqual("ab", "Ab".ToLowerFirst());
+            Assert.AreEqual("aB", "AB".ToLowerFirst());
+        }
 
         [Test]
         public static void ParseTest() {

@@ -54,8 +54,10 @@ namespace Git.Lfx {
         public string Url => m_gitConfig[LfxConfigFile.UrlId];
         public bool HasPattern => m_gitConfig.Contains(LfxConfigFile.PatternId);
         public GitConfigValue Pattern => m_gitConfig.GetValue(LfxConfigFile.PatternId);
-        public bool HasArchiveHint => m_gitConfig.Contains(LfxConfigFile.ArchiveHintId);
-        public GitConfigValue ArchiveHint => m_gitConfig.GetValue(LfxConfigFile.ArchiveHintId);
+        public bool HasHint => m_gitConfig.Contains(LfxConfigFile.HintId);
+        public GitConfigValue Hint => m_gitConfig.GetValue(LfxConfigFile.HintId);
+        public bool HasArgs => m_gitConfig.Contains(LfxConfigFile.ArgsId);
+        public GitConfigValue Args => m_gitConfig.GetValue(LfxConfigFile.ArgsId);
 
         public override string ToString() => m_gitConfig.ToString();
     }

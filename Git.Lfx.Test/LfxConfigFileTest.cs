@@ -15,7 +15,7 @@ namespace Git.Lfx.Test {
             $"[lfx]{Nl}" +
             $"{Tab}type = archive{Nl}" +
             $"{Tab}url = {Url}{Nl}" +
-            $"{Tab}archiveHint = {Hint}{Nl}" +
+            $"{Tab}hint = {Hint}{Nl}" +
             $"{Tab}pattern = {Regex}{Nl}" +
             $"{Nl}";
 
@@ -37,7 +37,7 @@ namespace Git.Lfx.Test {
                 Assert.AreEqual(configFilePath.ToString(), configFile.Path);
                 Assert.AreEqual(LfxPointerType.Archive, configFile.Type);
                 Assert.AreEqual(Url, configFile.Url);
-                Assert.AreEqual(Hint, configFile.ArchiveHint);
+                Assert.AreEqual(Hint, configFile.Hint);
             }
         }
     }

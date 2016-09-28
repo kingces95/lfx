@@ -1,14 +1,29 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Git.Lfx {
 
     public sealed class LfxBlobCache : IEnumerable<LfxBlob> {
         public const string LfxDirName = @"lfx";
         public const string ObjectsDirName = @"objects";
+
+        private struct LfxArchivePointer {
+            private readonly Uri m_url;
+            private readonly string m_args;
+
+            public LfxArchivePointer(Uri url, string args = null) {
+                m_url = url;
+                m_args = args;
+            }
+
+            public Uri Url => m_url;
+            public string Args => m_args;
+        }
 
         public static readonly string DefaultUserCacheDir = Path.Combine(
             Environment.GetEnvironmentVariable("APPDATA"),
@@ -47,49 +62,81 @@ namespace Git.Lfx {
              );
         }
 
+        private readonly ConcurrentDictionary<LfxArchivePointer, Task<TempDir>> m_archives;
         private readonly LfxBlobCache m_parentCache;
         private readonly LfxBlobStore m_store;
 
-        public LfxBlobCache(
-            string storeDir, 
-            LfxBlobCache parent = null) {
-
+        public LfxBlobCache(string storeDir, LfxBlobCache parent = null) {
             m_store = new LfxBlobStore(storeDir);
             m_parentCache = parent;
+            if (m_parentCache == null)
+                m_archives = new ConcurrentDictionary<LfxArchivePointer, Task<TempDir>>();
         }
 
         public LfxBlobCache Parent => m_parentCache;
         public LfxBlobStore Store => m_store;
 
+        public LfxBlob Save(string path) => m_store.Add(path);
         public LfxBlob Load(LfxPointer pointer) {
+            return LoadAsync(pointer).Result;
+        }
+        public LfxBlob Load(Uri url) {
+            return LoadAsync(url).Result;
+        }
+        public IEnumerable<LfxBlob> LoadArchive(Uri url) {
+            return LoadArchiveAsync(url).Result;
+        }
+        public IEnumerable<LfxBlob> LoadSelfExtractingArchive(Uri url, string args) {
+            return LoadSelfExtractingArchiveAsync(url, args).Result;
+        }
+
+        public async Task<LfxBlob> LoadAsync(LfxPointer pointer) {
             LfxBlob blob;
             if (TryGet(pointer.Hash, out blob))
                 return blob;
 
             if (pointer.Type == LfxPointerType.Archive)
-                LoadArchive(pointer.Url);
+                await LoadArchiveAsync(pointer.Url);
+
+            else if (pointer.Type == LfxPointerType.SelfExtractingArchive)
+                await LoadSelfExtractingArchiveAsync(pointer.Url, pointer.Args);
 
             else if (pointer.Type == LfxPointerType.Curl)
-                Load(pointer.Url);
+                await LoadAsync(pointer.Url);
 
             if (!TryGet(pointer.Hash, out blob))
-                throw new Exception($"Expected LfxPointer hash '{pointer.Hash}' to match downloaded content.");
+                throw new Exception($"Expected LfxPointer not found in downloaded content. Pointer:\n{pointer}");
 
             return blob;
         }
-        public LfxBlob Load(Uri url) {
+        public async Task<LfxBlob> LoadAsync(Uri url) {
             if (m_parentCache != null) 
                 return m_store.Add(m_parentCache.Load(url));
 
-            using (var tempFile = url.DownloadToTempFile())
+            using (var tempFile = await url.DownloadToTempFileAsync())
                 return m_store.Add(tempFile);
         }
-        public IEnumerable<LfxBlob> LoadArchive(Uri url) {
+        public async Task<IEnumerable<LfxBlob>> LoadArchiveAsync(Uri url) {
             if (m_parentCache != null) 
                 return m_parentCache.LoadArchive(url).Select(o => m_store.Add(o)).ToList();
 
-            using (var tempFiles = url.DownloadAndUnZip())
-                return tempFiles.Select(o => m_store.Add(o)).ToList();
+            var tempFiles = await m_archives.GetOrAdd(
+                key: new LfxArchivePointer(url), 
+                valueFactory: async o => await o.Url.DownloadAndUnZipAsync()
+            );
+
+            return tempFiles.Select(o => m_store.Add(o)).ToList();
+        }
+        public async Task<IEnumerable<LfxBlob>> LoadSelfExtractingArchiveAsync(Uri url, string args) {
+            if (m_parentCache != null) 
+                return m_parentCache.LoadSelfExtractingArchive(url, args).Select(o => m_store.Add(o)).ToList();
+
+            var tempFiles = await m_archives.GetOrAdd(
+                key: new LfxArchivePointer(url, args),
+                valueFactory: async o => await o.Url.DownloadAndSelfExtractAsync(o.Args)
+            );
+
+            return tempFiles.Select(o => m_store.Add(o)).ToList();
         }
 
         public bool Promote(LfxHash hash) {

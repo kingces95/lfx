@@ -6,13 +6,15 @@ using System.Text;
 using System.Security.Cryptography;
 using System.IO;
 using System.Collections.Immutable;
+using System.Threading.Tasks;
 
 namespace Git.Lfx
 {
     public enum LfxPointerType {
         Simple,
         Curl,
-        Archive
+        Archive,
+        SelfExtractingArchive
     }
     public enum LfxHashMethod {
         Sha256 = 1
@@ -25,8 +27,9 @@ namespace Git.Lfx
         private const string OidKey = "oid";
         private const string SizeKey = "size";
         private const string UrlKey = "url";
+        private const string ArgsKey = "args";
         private const string TypeKey = "type";
-        private const string ArchiveHintKey = "archiveHint";
+        private const string ArchiveHintKey = "hint";
         private const string OidHashMethodSha256 = "sha256";
 
         public static LfxPointer Parse(TextReader stream) => Parse(stream.ReadToEnd());
@@ -82,6 +85,11 @@ namespace Git.Lfx
                 pointer.Add(key, value);
             }
 
+            if (first) {
+                errorMessage = "Expected lfx poitner to contain version key.";
+                return false;
+            }
+
             if (!last) {
                 errorMessage = "Expected lfx pointer to end in '\\n\\n'.";
                 return false;
@@ -109,16 +117,23 @@ namespace Git.Lfx
             return TryParse(new StringReader(text), out pointer, out errorMessage);
         }
 
+        public static bool CanLoad(string path) {
+            LfxPointer pointer;
+            return TryLoad(path, out pointer);
+        }
         public static bool TryLoad(string path, out LfxPointer pointer) {
             using (var stream = new StreamReader(path))
                 return TryParse(stream, out pointer);
         }
         public static LfxPointer Load(string path) => Parse(File.ReadAllText(path));
 
-        public static LfxPointer Create(string path) {
+        public static LfxPointer Create(string path, LfxHash? hash = null) {
             LfxPointer pointer;
-            using (var file = File.OpenRead(path))
-                pointer = Create(file);
+
+            var length = new FileInfo(path).Length;
+            if (hash == null)
+                hash = LfxHash.Compute(path);
+            pointer = Create(hash.Value, length);
 
             var config = LfxConfig.Load(path);
 
@@ -127,9 +142,10 @@ namespace Git.Lfx
                 return pointer;
 
             var url = config.Url;
-            var relPath = string.Empty;
+            var relPath = config.ConfigFile.Path.MakeRelativePath(path);
             if (config.HasPattern) {
-                relPath = config.Pattern.ConfigFile.Path.GetDir().ToUrl().MakeRelativeUri(path.ToUrl()).ToString();
+                // change base of relPath to config file containing pattern
+                relPath = config.Pattern.ConfigFile.Path.MakeRelativePath(path);
                 url = Regex.Replace(
                     input: relPath,
                     pattern: config.Pattern,
@@ -141,17 +157,29 @@ namespace Git.Lfx
             if (config.Type == LfxPointerType.Curl)
                 return pointer.AddUrl(url.ToUrl());
 
-            var archiveHint = config.ArchiveHint.Value;
-            if (config.HasPattern) {
-                archiveHint = Regex.Replace(
-                    input: relPath,
-                    pattern: config.Pattern,
-                    replacement: config.ArchiveHint
-                );
+            // default hint is relPath
+            var hint = relPath;
+            if (config.HasHint) {
+
+                // hardcoded hint (very rare)
+                hint = config.Hint.Value;
+                if (config.HasPattern) {
+
+                    // substituted hint (nuget case)
+                    hint = Regex.Replace(
+                        input: relPath,
+                        pattern: config.Pattern,
+                        replacement: config.Hint
+                    );
+                }
             }
 
             // archive
-            return pointer.AddArchive(url.ToUrl(), archiveHint);
+            if (config.Type == LfxPointerType.Archive)
+                return pointer.AddArchive(url.ToUrl(), hint);
+
+            // self extracting archive
+            return pointer.AddSelfExtractingArchive(url.ToUrl(), hint, config.Args);
         }
         public static LfxPointer Create(byte[] bytes, int? count = null) {
             return Create(new MemoryStream(bytes, 0, count ?? bytes.Length));
@@ -186,7 +214,7 @@ namespace Git.Lfx
 
         private const string EndOfLine = "\n";
         private const string EndOfPointer = EndOfLine;
-        private const string KeyRegex = "^([a-z|A-Z|0-9|.|-])*$";
+        private const string KeyRegex = "^([a-z|0-9|.|-])*$";
         private const string ValueRegex = "^([^\n\r])*$";
         private static readonly Dictionary<string, string> KnownKeyRegex =
             new Dictionary<string, string>() {
@@ -206,7 +234,7 @@ namespace Git.Lfx
         private ImmutableDictionary<string, string> m__pairs;
 
         private LfxPointer(LfxPointerType type, ImmutableDictionary<string, string> pairs) {
-            m__pairs = pairs.Add(TypeKey, type.ToString().ToLower());
+            m__pairs = pairs.Add(TypeKey, type.ToString().ToLowerFirst());
         }
 
         private ImmutableDictionary<string, string> Pairs {
@@ -229,6 +257,7 @@ namespace Git.Lfx
             Enum.Parse(typeof(LfxHashMethod), Oid.Substring(0, Oid.IndexOf(":")), ignoreCase: true);
         public Uri Version => this[VersionKey].ToUrl(); 
         public Uri Url => this[UrlKey] == null ? null : this[UrlKey].ToUrl();
+        public string Args => this[ArgsKey];
         public string ArchiveHint => this[ArchiveHintKey];
 
         public LfxPointer AddUrl(Uri url) {
@@ -249,6 +278,22 @@ namespace Git.Lfx
             pointer.Add(ArchiveHintKey, $"{hint}");
             pointer.Add(UrlKey, $"{url}");
             return pointer;
+        }
+        public LfxPointer AddSelfExtractingArchive(Uri url, string hint, string args) {
+
+            if (Type != LfxPointerType.Simple)
+                throw new InvalidOperationException();
+
+            var pointer = new LfxPointer(LfxPointerType.SelfExtractingArchive, Pairs);
+            pointer.Add(ArchiveHintKey, $"{hint}");
+            pointer.Add(UrlKey, $"{url}");
+            pointer.Add(ArgsKey, $"{args}");
+            return pointer;
+        }
+
+        public void Save(string path) {
+            using (var sw = new StreamWriter(path))
+                sw.Write(ToString());
         }
 
         public override bool Equals(object obj) => obj is LfxPointer ? Equals((LfxPointer)obj) : false;

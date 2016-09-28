@@ -2,14 +2,15 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
-using System.Net;
-using System.Collections;
 using System.Reflection;
 using Git;
 using System.Xml.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using System.Threading;
+using System.Diagnostics;
+using System.Threading.Tasks.Dataflow;
 
 namespace Lfx {
 
@@ -18,13 +19,28 @@ namespace Lfx {
         Unset,
         List, L,
         Sample,
+        Content, Pointer,
         Cached, C,
-        Others, O
+        Others, O,
+        Quite, Q,
+        Force, F
+    }
+
+    public static class Extensions {
+        public static bool EqualsIgnoreCase(this string source, string target) {
+            return string.Compare(source, target, true) == 0;
+        }
+        public static string ExpandOrTrim(this string source, int length) {
+            if (source.Length > length)
+                return source.Substring(0, length);
+            return source.PadRight(length);
+        }
     }
 
     public sealed class LfxCmd {
         public const string Exe = "git-lfx.exe";
 
+        private readonly object Lock = new object();
         private readonly string m_commandLine;
 
         public static void Execute(string commandLine) => new LfxCmd(commandLine).Execute();
@@ -60,10 +76,15 @@ namespace Lfx {
 
             } catch (TargetInvocationException tie) {
                 var e = tie.InnerException;
-                Log($"{e.GetType()}: {e}");
+
+                var ae = e as AggregateException;
+                if (ae != null)
+                    e = ae.InnerException;
+
+                Log($"{e.GetType()}: {e.Message}");
 
             } catch (Exception e) {
-                Log($"{e.GetType()}: {e}");
+                Log($"{e.GetType()}: {e.Message}");
             }
         }
         private GitCmdArgs Parse(
@@ -91,6 +112,88 @@ namespace Lfx {
             if (!string.IsNullOrEmpty(result))
                 Log(result);
         }
+        private void Batch<T>(GitCmdArgs args, IEnumerable<T> source, Action<T> action) {
+            Batch(args, source, o => {
+                action(o);
+                return Task.FromResult<object>(null);
+            });
+        }
+        private void Batch<T>(GitCmdArgs args, IEnumerable<T> source, Func<T, Task> action) {
+            var quite = args.IsSet(LfxCmdSwitches.Q, LfxCmdSwitches.Quite);
+
+            int count = 0;
+            double total = source.Count();
+            var top = Console.CursorTop;
+            var sw = new Stopwatch();
+            sw.Start();
+
+            var block = new ActionBlock<T>(async o => {
+                if (!quite) {
+                    Interlocked.Increment(ref count);
+                    lock (Lock) {
+                        Console.SetCursorPosition(0, top);
+                        Console.Write($"Progress: {count}/{total}={count / total:P}, t={sw.Elapsed:hh':'mm':'ss'.'ff}, {o}"
+                            .ExpandOrTrim(Console.BufferWidth - 1));
+                    }
+                }
+
+                try {
+                    await action(o);
+                } catch (Exception e) {
+                    Console.WriteLine();
+                    Console.WriteLine(e.Message);
+                }
+            });
+
+            foreach (var o in source)
+                block.Post(o);
+            block.Complete();
+            block.Completion.Wait();
+
+            Console.SetCursorPosition(0, top);
+            Console.Write($"Progress: {count}/{total}={count / total:P}, t={sw.Elapsed:hh':'mm':'ss'.'ff}"
+                .ExpandOrTrim(Console.BufferWidth - 1));
+            Console.WriteLine();
+        }
+        private LfxFileFlags GetFileFlags(GitCmdArgs args, bool pointer = false, bool content = false) {
+
+            var flags = default(LfxFileFlags);
+            if (args.IsSet(LfxCmdSwitches.Cached, LfxCmdSwitches.C))
+                flags |= LfxFileFlags.Tracked;
+
+            if (args.IsSet(LfxCmdSwitches.Others, LfxCmdSwitches.O))
+                flags |= LfxFileFlags.Untracked;
+
+            if (args.IsSet(LfxCmdSwitches.Content))
+                flags |= LfxFileFlags.Content;
+
+            if (args.IsSet(LfxCmdSwitches.Pointer))
+                flags |= LfxFileFlags.Pointer;
+
+            if (flags == default(LfxFileFlags))
+                flags = LfxFileFlags.Tracked;
+
+            if (pointer)
+                flags |= LfxFileFlags.Pointer;
+
+            if (content)
+                flags |= LfxFileFlags.Content;
+
+            return flags;
+        }
+        private IEnumerable<GitFile> GetFiles(GitCmdArgs args, bool pointer = false, bool content = false) {
+
+            string dir = null;
+            string filter = null;
+            if (args.Length > 0) {
+                dir = args[0].GetDir();
+                filter = Path.GetFileName(args[0]);
+            }
+
+            var flags = GetFileFlags(args, pointer, content);
+            var lfxFiles = LfxFile.Load(filter, dir, flags);
+            return lfxFiles;
+        }
 
         public void Help() {
             Log("git-lfx/0.0.1 (GitHub; corclr)");
@@ -101,12 +204,24 @@ namespace Lfx {
             Log();
             Log("Clone <url> <target>   Clone repository, set lfx filters, and download any lfx content.");
             Log();
-            Log("Checkout <filter>      Replace lfx pointer with content in files using lfx filters.");
+            Log("Checkout <filter>      Batch replace lfx pointer with content in files.");
             Log("    -l, --list             List lfx pointers that would be restored, but don't actually restore.");
+            Log("    -c, --cached           Tracked files (default).");
+            Log("    -o, --other            Untracked files.");
+            Log("    -q, --quite            Suppress progress reporting.");
+            Log();
+            Log("Reset <filter>         Batch replace lfx files with lfx pointers.");
+            Log("    -l, --list             List lfx files that would be reset, but don't actually reset.");
+            Log("    -c, --cached           Tracked files (default).");
+            Log("    -o, --other            Untracked files.");
+            Log("    -q, --quite            Suppress progress reporting.");
+            Log("    -f, --force            Force overwriting read-only and system files. Clear hidden files.");
             Log();
             Log("Files <filter>         List files using lfx filters in directory and subdirectories.");
-            Log("    -c, --cached           Tracked files (default)");
-            Log("    -o, --other            Untracked files");
+            Log("    -c, --cached           Tracked files (default).");
+            Log("    -o, --other            Untracked files.");
+            Log("    --content              Only show files with content.");
+            Log("    --poitner              Only show files pointing to content.");
             Log();
             Log("Show <path>            Write contents of a staged file (e.g. after running lfx clean filter).");
             Log();
@@ -118,6 +233,8 @@ namespace Lfx {
             Log("    -l, --list             List lfx filters.");
             Log("    --unset                Unset lfx filters.");
             Log("    --set                  Set lfx filters.");
+            Log();
+            Log("Cache                  Dump cache hashes.");
             Log();
             Log("Clean <path>           Write a lfx pointer to a file's content to standard output.");
             Log();
@@ -152,7 +269,7 @@ namespace Lfx {
             Log($"  {LfxConfigFile.TypeId}={gitConfig[LfxConfigFile.TypeId]}");
             Log($"  {LfxConfigFile.UrlId}={gitConfig[LfxConfigFile.UrlId]}");
             Log($"  {LfxConfigFile.PatternId}={gitConfig[LfxConfigFile.PatternId]}");
-            Log($"  {LfxConfigFile.ArchiveHintId}={gitConfig[LfxConfigFile.ArchiveHintId]}");
+            Log($"  {LfxConfigFile.HintId}={gitConfig[LfxConfigFile.HintId]}");
             Log();
 
             Log("Config Files:");
@@ -242,7 +359,7 @@ namespace Lfx {
                     Git($"config -f .lfxconfig --add lfx.type archive");
                     Git($"config -f .lfxconfig --add lfx.url {nugetPkgUrl}");
                     Git($"config -f .lfxconfig --add lfx.pattern {nugetPkgPattern}");
-                    Git($"config -f .lfxconfig --add lfx.archiveHint {nugetPkgHint}");
+                    Git($"config -f .lfxconfig --add lfx.hint {nugetPkgHint}");
 
                     new XElement("packages",
                         new XElement("package",
@@ -295,7 +412,7 @@ namespace Lfx {
 
             var pointerStream = Console.OpenStandardInput();
             if (args.Length == 1)
-                pointerStream = File.OpenRead(args[1]);
+                pointerStream = File.OpenRead(args[0]);
 
             using (var sr = new StreamReader(pointerStream)) {
                 var pointer = LfxPointer.Parse(sr);
@@ -348,27 +465,13 @@ namespace Lfx {
                     LfxCmdSwitches.Cached,
                     LfxCmdSwitches.C,
                     LfxCmdSwitches.Others,
-                    LfxCmdSwitches.O
+                    LfxCmdSwitches.O,
+                    LfxCmdSwitches.Content,
+                    LfxCmdSwitches.Pointer
                 )
             );
 
-            string dir = null;
-            string filter = null;
-            if (args.Length > 0) {
-                dir = args[0].GetDir();
-                filter = Path.GetFileName(args[0]);
-            }
-
-            var flags = default(GitFileFlags);
-            if (args.IsSet(LfxCmdSwitches.Cached, LfxCmdSwitches.C))
-                flags |= GitFileFlags.Tracked;
-            if (args.IsSet(LfxCmdSwitches.Others, LfxCmdSwitches.O))
-                flags |= GitFileFlags.Untracked;
-            if (flags == default(GitFileFlags))
-                flags = GitFileFlags.Tracked;
-
-            var lfxFiles = GitFile.Load(filter, dir, flags).Where(o => o.IsDefined("filter", "lfx"));
-            foreach (var file in lfxFiles)
+            foreach (var file in GetFiles(args))
                 Log($"{file}");
         }
         public void Checkout() {
@@ -377,44 +480,90 @@ namespace Lfx {
                 maxArgs: 1,
                 switchInfo: GitCmdSwitchInfo.Create(
                     LfxCmdSwitches.List,
-                    LfxCmdSwitches.L
+                    LfxCmdSwitches.L,
+                    LfxCmdSwitches.Cached,
+                    LfxCmdSwitches.C,
+                    LfxCmdSwitches.Others,
+                    LfxCmdSwitches.O,
+                    LfxCmdSwitches.Quite,
+                    LfxCmdSwitches.Q
+               )
+            );
+
+            var lfxFiles = GetFiles(args, pointer: true);
+
+            var listOnly = args.IsSet(LfxCmdSwitches.L, LfxCmdSwitches.List);
+            if (listOnly) {
+                foreach (var file in lfxFiles)
+                    Log($"{file}");
+                return;
+            }
+
+            var cache = LfxBlobCache.Create();
+
+            Batch(args, lfxFiles, async file => {
+                LfxPointer pointer;
+                if (!LfxPointer.TryLoad(file.Path, out pointer))
+                    return;
+
+                var blob = await cache.LoadAsync(pointer);
+
+                blob.Save(file.Path);
+            });
+        }
+        public void Reset() {
+            var args = Parse(
+                minArgs: 0,
+                maxArgs: 1,
+                switchInfo: GitCmdSwitchInfo.Create(
+                    LfxCmdSwitches.List,
+                    LfxCmdSwitches.L,
+                    LfxCmdSwitches.Cached,
+                    LfxCmdSwitches.C,
+                    LfxCmdSwitches.Others,
+                    LfxCmdSwitches.O,
+                    LfxCmdSwitches.Quite,
+                    LfxCmdSwitches.Q,
+                    LfxCmdSwitches.Force,
+                    LfxCmdSwitches.F
                 )
             );
 
+            var lfxFiles = GetFiles(args, content: true);
+
             var listOnly = args.IsSet(LfxCmdSwitches.L, LfxCmdSwitches.List);
-
-            string dir = null;
-            string filter = null;
-            if (args.Length > 0) {
-                dir = args[0].GetDir();
-                filter = Path.GetFileName(args[0]);
+            if (listOnly) {
+                foreach (var file in lfxFiles)
+                    Log($"{file}");
+                return;
             }
 
-            var lfxFiles = GitFile.Load(filter, dir, GitFileFlags.All)
-                .Where(o => o.IsDefined("filter", "lfx"));
+            var force = args.IsSet(LfxCmdSwitches.F, LfxCmdSwitches.Force);
 
-            foreach (var file in lfxFiles) {
-                LfxPointer pointer;
-                using (var sr = new StreamReader(file.Path)) {
-                    var canParse = LfxPointer.TryParse(sr, out pointer);
-                    if (!canParse)
-                        continue;
+            var cache = LfxBlobCache.Create();
+            Batch(args, lfxFiles, file => {
+                var path = file.Path;
 
-                    if (listOnly) {
-                        Log($"{file}");
-                        continue;
-                    }
+                if (force) {
+                    var mask = ~(FileAttributes.Hidden | FileAttributes.ReadOnly | FileAttributes.System);
+                    File.SetAttributes(
+                        path: path,
+                        fileAttributes: File.GetAttributes(path) & mask
+                    );
                 }
 
-                var cache = LfxBlobCache.Create();
-                var blob = cache.Load(pointer);
-
-                using (var contentStream = blob.OpenRead()) {
-                    File.Delete(file.Path);
-                    using (var sw = File.OpenWrite(file.Path))
-                        contentStream.CopyTo(sw);
+                if (!LfxPointer.CanLoad(path)) {
+                    var blob = cache.Save(path);
+                    var pointer = LfxPointer.Create(path, blob.Hash);
+                    pointer.Save(path);
                 }
-            }
+            });
+        }
+        public void Cache() {
+            var cache = LfxBlobCache.Create();
+
+            foreach (var blob in cache)
+                Console.WriteLine($"{blob.Hash}");
         }
     }
 }

@@ -29,6 +29,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <UseVSHostingProcess>false</UseVSHostingProcess>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="nunit.framework, Version=3.4.1.0, Culture=neutral, PublicKeyToken=2638cd05610744eb, processorArchitecture=MSIL">
@@ -50,6 +51,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="LfxExe.cs" />
     <Compile Include="LfxEndToEndTest.cs" />
     <Compile Include="LfxBlobCacheTest.cs" />
     <Compile Include="LfxBlobStoreTest.cs" />
@@ -59,6 +61,9 @@
     <Compile Include="LfxHashTest.cs" />
     <Compile Include="LfxPointerTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="..\AssemblyVersion.cs">
+      <Link>Properties\AssemblyVersion.cs</Link>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -76,6 +81,9 @@
       <Project>{af1cf4f6-5b83-4b81-a290-ec939403055e}</Project>
       <Name>Git</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Service Include="{82A7F48D-3B50-4B1E-B82E-3ADA8210C358}" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

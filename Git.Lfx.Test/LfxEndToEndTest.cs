@@ -96,7 +96,7 @@ namespace Git.Lfx.Live.Test {
                         Git($"config -f {LfxConfig} --add {LfxConfigFile.TypeId} {NugetType}");
                         Git($"config -f {LfxConfig} --add {LfxConfigFile.UrlId} {NugetUrl}");
                         Git($"config -f {LfxConfig} --add {LfxConfigFile.PatternId} {NugetRegex}");
-                        Git($"config -f {LfxConfig} --add {LfxConfigFile.ArchiveHintId} {NugetHint}");
+                        Git($"config -f {LfxConfig} --add {LfxConfigFile.HintId} {NugetHint}");
 
                         Console.WriteLine($"{LfxConfig}: {Path.GetFullPath(LfxConfig)}:");
                         Console.WriteLine(File.ReadAllText(LfxConfig));

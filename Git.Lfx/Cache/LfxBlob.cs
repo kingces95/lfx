@@ -22,6 +22,13 @@ namespace Git.Lfx {
         public LfxHash Hash => m_hash;
         public string Path => m_file.ToString();
         public Stream OpenRead() => File.OpenRead(Path);
+        public void Save(string path) {
+            using (var contentStream = OpenRead()) {
+                File.Delete(path);
+                using (var sw = File.OpenWrite(path))
+                    contentStream.CopyTo(sw);
+            }
+        }
 
         public override bool Equals(object obj) => obj is LfxBlob ? Equals((LfxBlob)obj) : false;
         public bool Equals(LfxBlob other) => m_file.EqualPath(other.m_file);
