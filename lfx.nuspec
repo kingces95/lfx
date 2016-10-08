@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>git-lfx</id>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
     <owners>kingces95</owners>
     <title>git curl extension</title>
     <authors>kingces95</authors>
@@ -18,14 +18,16 @@
     <tags>lfx lfs git</tags>
     <summary>Extension of git-lfs which teaches git to fetch archives</summary>
     <description>Git extension to (1) replace a file before it's pushed with a pointer (url) to a public source and (2) replace a pointer to a file with its content before it's added to the working tree by curling the url found in the pointer. Also supports pointing into and restoring individual files in zip archives (e.g. useful for restoring nuget packages during git fetch). Git-lfx is inspired by git-lfs (see: https://git-lfs.github.com/).</description>
-    <releaseNotes>Premier release.</releaseNotes> 
-    <dependencies/>
+    <releaseNotes>Premier release.</releaseNotes>
+    <dependencies />
   </metadata>
   <files>
     <file src="Git-Lfx\bin\Release\git-lfx.exe" target="tools" />
     <file src="Git-Lfx\bin\Release\git-lfx.exe.config" target="tools" />
     <file src="Git-Lfx\bin\Release\git.dll" target="tools" />
     <file src="Git-Lfx\bin\Release\git.lfx.dll" target="tools" />
-    <file src="Git-Lfx\bin\Release\system.collections.immutable.dll" target="tools" />
+    <file src="Git-Lfx\bin\Release\Newtonsoft.Json.dll" target="tools" />
+    <file src="Git-Lfx\bin\Release\System.Collections.Immutable.dll" target="tools" />
+    <file src="Git-Lfx\bin\Release\System.Threading.Tasks.Dataflow.dll" target="tools" />
   </files>
 </package>

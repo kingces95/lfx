@@ -196,7 +196,7 @@ namespace Lfx {
         }
 
         public void Help() {
-            Log("git-lfx/0.0.1 (GitHub; corclr)");
+            Log("git-lfx/0.2.0 (GitHub; corclr)");
             Log("git lfx <command> [<args>]");
             Log();
             Log("Init                   Initialize a new git repository and set lfx filters.");
