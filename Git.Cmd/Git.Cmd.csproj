@@ -4,11 +4,11 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{AF1CF4F6-5B83-4B81-A290-EC939403055E}</ProjectGuid>
+    <ProjectGuid>{F14257AF-3793-4613-BB88-F01412DB29AE}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Git</RootNamespace>
-    <AssemblyName>Git</AssemblyName>
+    <RootNamespace>Git.Cmd</RootNamespace>
+    <AssemblyName>Git.Cmd</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -40,33 +40,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="GitFile.cs" />
-    <Compile Include="GitConfig.cs" />
-    <Compile Include="GitConfigValue.cs" />
-    <Compile Include="GitConfigFile.cs" />
-    <Compile Include="GitCmd.cs" />
-    <Compile Include="GitHash.cs" />
+    <Compile Include="GitCmdArgs.cs" />
+    <Compile Include="GitCmdToken.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="..\AssemblyVersion.cs">
-      <Link>Properties\AssemblyVersion.cs</Link>
-    </Compile>
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Cmd\Cmd.csproj">
-      <Project>{9c70b383-ce1b-46a2-af45-d13b70d01812}</Project>
-      <Name>Cmd</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Git.Cmd\Git.Cmd.csproj">
-      <Project>{f14257af-3793-4613-bb88-f01412db29ae}</Project>
-      <Name>Git.Cmd</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Util\Util.csproj">
-      <Project>{9c33358d-6452-43a6-9d89-670ecd8c4358}</Project>
-      <Name>Util</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Util\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

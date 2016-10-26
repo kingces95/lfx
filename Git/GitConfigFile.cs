@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Collections;
 using System.IO;
+using Util;
 
 namespace Git {
 
@@ -50,7 +51,7 @@ namespace Git {
                     workingDir = Environment.CurrentDirectory;
                 workingDir = workingDir.ToDir();
 
-                var gitDir = workingDir.FindFileAbove(GitDirName, directory: true);
+                var gitDir = workingDir.FindDirectoryAbove(GitDirName);
                 if (gitDir == null)
                     return null;
                 var path = gitDir + GitLocalConfigFileName;
@@ -117,16 +118,16 @@ namespace Git {
                 // (1) called via git filter and when (2) working dir explictly set
                 string workingDir = null; // = WorkingDir;
 
-                var sr = GitCmd.Execute(RefreshCommand, workingDir);
+                using (var sr = new StreamReader(GitCmd.Execute(RefreshCommand, workingDir))) {
+                    foreach (var line in sr.Lines()) {
+                        var match = Regex.Match(line, ConfigRegex, RegexOptions.IgnoreCase);
+                        var key = match.Groups[ConfigRegexName].Value;
+                        var value = match.Groups[ConfigRegexValue].Value;
+                        config[key] = new GitConfigValue(this, key, value);
+                    }
 
-                foreach (var line in sr.Lines()) {
-                    var match = Regex.Match(line, ConfigRegex, RegexOptions.IgnoreCase);
-                    var key = match.Groups[ConfigRegexName].Value;
-                    var value = match.Groups[ConfigRegexValue].Value;
-                    config[key] = new GitConfigValue(this, key, value);
+                    return config;
                 }
-
-                return config;
             });
         }
 

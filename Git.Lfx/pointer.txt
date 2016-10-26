@@ -1,0 +1,22 @@
+﻿zip
+1
+http://foo.bar/baz
+123535
+ab098089c08d08e080800809a07f0707f08008
+435488
+
+exe
+1
+http://foo.bar/baz
+123535
+ab098089c08d08e080800809a07f0707f08008
+435488
+-of:{0}
+
+file
+1
+http://foo.bar/baz
+123535
+ab098089c08d08e080800809a07f0707f08008
+foo.exe
+May 10, 1029

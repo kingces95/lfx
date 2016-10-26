@@ -3,6 +3,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using IOPath = System.IO.Path;
+using Util;
 
 namespace Git {
     [Flags]

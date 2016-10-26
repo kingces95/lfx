@@ -11,9 +11,9 @@ namespace Git {
             string workingDirectory = null,
             Stream inputStream = null) {
 
-            return Cmd.Stream(Exe, commandLine, workingDirectory, inputStream);
+            return Cmd.Open(Exe, commandLine, workingDirectory, inputStream);
         }
-        public static StreamReader Execute(
+        public static Stream Execute(
             string commandLine,
             string workingDirectory = null,
             Stream inputStream = null) {

@@ -1,16 +1,16 @@
 ﻿using System;
 using System.IO;
-using System.Diagnostics;
-using System.Text.RegularExpressions;
 using System.Security.Cryptography;
 using System.Text;
-using System.Linq;
+using Util;
 
 namespace Git.Lfx {
 
-    public struct LfxHash {
+    public struct LfxHash : IEquatable<LfxHash> {
         private const int Length = 64;
 
+        public static bool operator ==(LfxHash lhs, LfxHash rhs) => lhs.Equals(rhs);
+        public static bool operator !=(LfxHash lhs, LfxHash rhs) => !lhs.Equals(rhs);
         public static implicit operator string(LfxHash hash) => hash.ToString();
 
         public static LfxHash Compute(string value, Encoding encoding) {
@@ -40,6 +40,7 @@ namespace Git.Lfx {
 
         public static LfxHash Create(byte[] value) => new LfxHash(Hash.Create(value));
         public static LfxHash Parse(string value) => new LfxHash(Hash.Parse(value, Length));
+        public static bool TryParse(string value, out LfxHash hash) => LfxHash.TryParse(value, out hash);
 
         private readonly Hash m_value;
 
@@ -48,6 +49,7 @@ namespace Git.Lfx {
         }
 
         public byte[] Value => m_value.Value;
+        public bool IsNull => m_value.IsNull;
 
         public override bool Equals(object obj) => obj is LfxHash ? ((LfxHash)obj).m_value == m_value : false;
         public bool Equals(LfxHash other) => m_value != null && m_value == other.m_value;

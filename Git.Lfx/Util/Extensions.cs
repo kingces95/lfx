@@ -2,10 +2,10 @@
 using System.IO;
 using System.Net;
 using System.IO.Compression;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Util;
 
 namespace Git.Lfx {
 
@@ -13,9 +13,8 @@ namespace Git.Lfx {
         public static Task DownloadAsync(this Uri uri, string file) {
             return new WebClient().DownloadFileTaskAsync(uri, file);
         }
-        public static async Task<TempFile> DownloadToTempFileAsync(this Uri url) {
-            var tempFile = Path.GetTempFileName();
-            File.Delete(tempFile);
+        public static async Task<TempFile> DownloadToTempFileAsync(this Uri url, string extension = "") {
+            var tempFile = Path.GetTempFileName() + extension;
             await url.DownloadAsync(tempFile);
             return new TempFile(tempFile);
         }

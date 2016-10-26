@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
 
-namespace Git {
+namespace Util {
 
     public class TempCurDir : IDisposable {
         public static implicit operator string(TempCurDir tempDir) => Environment.CurrentDirectory;
@@ -47,12 +47,15 @@ namespace Git {
         }
 
         private void Dispose(bool disposing) {
+            m_tempCurDir.Dispose();
+
             if (disposing)
                 GC.SuppressFinalize(this);
-            //Directory.Delete(m_tempDir, recursive: true);
 
-            // Directory.Delete threw "Access Denied" where rmdir worked...
-            Cmd.Execute("cmd.exe", $"/c rmdir /s/q {m_tempDir}");
+            if (!Directory.Exists(m_tempDir))
+                return;
+
+            Directory.Delete(m_tempDir, recursive: true);
         }
 
         public string Path => m_tempDir;
@@ -64,9 +67,7 @@ namespace Git {
 
         public override string ToString() => Path;
 
-        public void Dispose() {
-            try { m_tempCurDir.Dispose(); } finally { Dispose(true); }
-        }
+        public void Dispose() => Dispose(true);
         ~TempDir() { Dispose(false); }
     }
     public class TempFile : IDisposable {
@@ -84,10 +85,15 @@ namespace Git {
         private void Dispose(bool disposing) {
             if (disposing)
                 GC.SuppressFinalize(this);
+
+            if (!File.Exists(m_path))
+                return;
+
             File.Delete(m_path);
         }
 
         public string Path => m_path;
+        public string Directory => Path.GetDir();
 
         public override string ToString() => Path;
         public void Dispose()  => Dispose(true); 

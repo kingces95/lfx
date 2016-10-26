@@ -35,7 +35,7 @@ namespace Git.Lfx.Test {
                     Console.WriteLine($"{configValue.Key}: {configValue.Value}");
 
                 Assert.AreEqual(configFilePath.ToString(), configFile.Path);
-                Assert.AreEqual(LfxPointerType.Archive, configFile.Type);
+                Assert.AreEqual(LfxPointerType.Zip, configFile.Type);
                 Assert.AreEqual(Url, configFile.Url);
                 Assert.AreEqual(Hint, configFile.Hint);
             }
@@ -66,7 +66,7 @@ namespace Git.Lfx.Test {
                     Console.WriteLine($"{configValue.Key}: {configValue.Value}");
 
                 Assert.AreEqual(configFilePath.ToString(), configFile.Path);
-                Assert.AreEqual(LfxPointerType.Curl, configFile.Type);
+                Assert.AreEqual(LfxPointerType.File, configFile.Type);
                 Assert.AreEqual(Url, configFile.Url);
             }
         }

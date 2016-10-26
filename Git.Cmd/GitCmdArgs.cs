@@ -1,12 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
-using System.IO.Compression;
 using System.Linq;
-using System.Net;
 using System.Collections;
-using System.Reflection;
-using System.Text.RegularExpressions;
 
 namespace Git {
 

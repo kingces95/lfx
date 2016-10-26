@@ -2,11 +2,12 @@
 using System.IO;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using Util;
+using System.Threading;
 
 namespace Git {
 
     public sealed class CmdStream : Stream {
-        public const int DefaultWaitTime = 5 * 1000;
 
         public static Stream Open(
             string exeName,
@@ -29,6 +30,12 @@ namespace Git {
                 WorkingDirectory = workingDir,
             };
 
+            return Open(processStartInfo, inputStream);
+        }
+        public static Stream Open(
+            ProcessStartInfo processStartInfo,
+            Stream inputStream = null) {
+
             return new CmdStream(processStartInfo, inputStream);
         }
 
@@ -47,14 +54,23 @@ namespace Git {
         private readonly Stream m_standardOutput;
         private readonly Task m_consumeStandardError;
         private readonly Stream m_standardError;
+        private readonly Lazy<Task> m_exitedAsync;
         private long m_position;
 
-        public CmdStream(ProcessStartInfo processStartInfo, Stream inputStream) {
+        private CmdStream(ProcessStartInfo processStartInfo, Stream inputStream) {
             m_process = Process.Start(processStartInfo);
             m_id = m_process.Id;
             m_standardOutput = m_process.StandardOutput.BaseStream;
             m_standardError = new MemoryStream();
+            m_exitedAsync = new Lazy<Task>(() => {
+                var are = new AutoResetEvent(false);
+                m_process.Exited += delegate { are.Set(); };
+                if (m_process.HasExited)
+                    return Task.FromResult(true);
+                return are.WaitOneAsync();
+            });
 
+            // todo: async copy of stderr instead of burning threadpool thread
             m_consumeStandardError = Task.Run(() =>
                 m_process.StandardError.BaseStream.CopyTo(m_standardError)
             );
@@ -73,12 +89,13 @@ namespace Git {
         private T ThrowInvalidOperation<T>() {
             throw new InvalidOperationException();
         }
-        private void WaitForProcessExit() {
+        private async Task WaitForProcessExitAsync() {
 
-            // wait for process and task compleation
-            if (!m_process.WaitForExit(DefaultWaitTime))
-                throw new Exception($"Timed out waiting for command process to exit: {this}");
-            m_consumeStandardError.Wait();
+            // await process exit
+            await m_exitedAsync.Value;
+
+            // await consumption of last bits in error stream
+            await m_consumeStandardError;
 
             // check for error
             var exitCode = m_process.ExitCode;
@@ -97,23 +114,32 @@ namespace Git {
             set { throw new InvalidOperationException(); }
         }
         public override int Read(byte[] buffer, int offset, int count) {
-            var consumed = (long)m_standardOutput.Read(buffer, offset, count);
+            return ReadAsync(buffer, offset, count).Await();
+        }
+        public override IAsyncResult BeginRead(byte[] buffer, int offset, int count, AsyncCallback callback, object state) {
+            return ReadAsync(buffer, offset, count).ToApm(callback, state);
+        }
+        public override int EndRead(IAsyncResult asyncResult) {
+            return ((Task<int>)asyncResult).Result;
+        }
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) {
+            var consumed = await m_standardOutput.ReadAsync(buffer, offset, count);
             m_position += consumed;
 
             if (consumed == 0)
-                WaitForProcessExit();
+                await WaitForProcessExitAsync();
 
-            return (int)consumed;
+            return consumed;
         }
 
         // seek boilerplate
         public override bool CanSeek => false;
         public override long Length => ThrowInvalidOperation<long>();
+        public override long Seek(long offset, SeekOrigin origin) => ThrowInvalidOperation<long>();
+        public override void SetLength(long value) => ThrowInvalidOperation<long>();
 
         // write boilerplate
         public override bool CanWrite => false;
-        public override long Seek(long offset, SeekOrigin origin) => ThrowInvalidOperation<long>();
-        public override void SetLength(long value) => ThrowInvalidOperation<long>();
         public override void Write(byte[] buffer, int offset, int count) => ThrowInvalidOperation<long>();
         public override void Flush() => m_standardOutput.Flush();
 
@@ -128,5 +154,6 @@ namespace Git {
         }
 
         public override string ToString() => $"{m_process.StartInfo.FileName} {m_process.StartInfo.Arguments}";
+
     }
 }

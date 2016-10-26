@@ -14,7 +14,7 @@ namespace Git.Lfx.Test {
             using (var storeDir = new TempDir()) {
 
                 // create store at storeDir
-                var store = new LfxBlobStore(storeDir);
+                var store = new LfxStore(storeDir);
                 Assert.AreEqual(storeDir.ToString(), store.Directory);
                 Assert.AreEqual(0, store.Count);
 
@@ -31,13 +31,13 @@ namespace Git.Lfx.Test {
                     Assert.AreEqual(blob, store.Single());
 
                     // get file from store
-                    LfxBlob rtBlob;
+                    LfxTarget rtBlob;
                     Assert.IsTrue(store.TryGet(hash, out rtBlob));
                     Assert.AreEqual(blob, rtBlob);
 
                     using (var altDir = new TempDir()) {
                         // create alternate store, add file blob
-                        var altStore = new LfxBlobStore(altDir);
+                        var altStore = new LfxStore(altDir);
                         var altBlob = altStore.Add(blob);
 
                         Assert.AreNotEqual(altBlob, blob);

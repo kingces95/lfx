@@ -13,13 +13,13 @@ namespace Git.Lfx.Live.Test {
         public const int Size = 3957976;
         public static readonly Uri Url = new Uri("https://dist.nuget.org/win-x86-commandline/v3.4.4/NuGet.exe");
         public static readonly LfxPointer Pointer =
-            LfxPointerTest.CreatePointer(Hash, Size, LfxPointerType.Curl, Url);
+            LfxPointerTest.CreatePointer(Hash, Size, LfxPointerType.File, Url);
 
         public const string AltHash = "af8ee5c2299a7d71f4bfefe046701af551c348b8c9f6c10302598262f16d42aa";
         public const int AltSize = 3787952;
         public static readonly Uri AltUrl = new Uri("https://dist.nuget.org/win-x86-commandline/v3.3.0/nuget.exe");
         public static readonly LfxPointer AltPointer =
-            LfxPointerTest.CreatePointer(AltHash, AltSize, LfxPointerType.Curl, AltUrl);
+            LfxPointerTest.CreatePointer(AltHash, AltSize, LfxPointerType.File, AltUrl);
 
         [Test]
         public static void DownloadTest() {
@@ -35,14 +35,14 @@ namespace Git.Lfx.Live.Test {
         public const int Size = 151552;
         public static readonly Uri Url = new Uri("http://nuget.org/api/v2/package/NUnit/2.6.4");
         public static readonly LfxPointer Pointer =
-            LfxPointerTest.CreatePointer(Hash, Size, LfxPointerType.Archive, Url, Hint);
+            LfxPointerTest.CreatePointer(Hash, Size, LfxPointerType.Zip, Url, Hint);
 
         public const string AltHash = "8b2bc1c3a689c5b5426bdb86ee1a3f63c904987763c266684e440ded74278f87";
         public const string AltHint = "tools/lib/nunit.core.dll";
         public const int AltSize = 155648;
         public static readonly Uri AltUrl = new Uri("http://nuget.org/api/v2/package/NUnit.Runners/2.6.4");
         public static readonly LfxPointer AltPointer =
-            LfxPointerTest.CreatePointer(AltHash, AltSize, LfxPointerType.Archive, AltUrl, AltHint);
+            LfxPointerTest.CreatePointer(AltHash, AltSize, LfxPointerType.Zip, AltUrl, AltHint);
 
         [Test]
         public static void DownloadTest() {
@@ -56,7 +56,7 @@ namespace Git.Lfx.Live.Test {
             using (var storeDir = new TempDir()) {
 
                 // create cache with storeDir
-                var cache = new LfxBlobCache(storeDir);
+                var cache = new LfxCache(storeDir);
 
                 using (var file = new TempFile()) {
 
@@ -71,17 +71,17 @@ namespace Git.Lfx.Live.Test {
                     Assert.IsTrue(cache.Contains(blob));
 
                     // get file from cache
-                    LfxBlob rtBlob;
+                    LfxTarget rtBlob;
                     Assert.IsTrue(cache.TryGet(hash, out rtBlob));
                     Assert.AreEqual(blob, rtBlob);
 
                     using (var altDir = new TempDir()) {
                         // create alternate cache, promote file
-                        var altCache = new LfxBlobCache(altDir, cache);
+                        var altCache = new LfxCache(altDir, cache);
                         Assert.AreEqual(cache, altCache.Parent);
 
                         // promote
-                        LfxBlob altBlob;
+                        LfxTarget altBlob;
                         Assert.IsTrue(altCache.TryGet(hash, out altBlob));
 
                         Assert.AreNotEqual(altBlob, blob);
@@ -90,7 +90,7 @@ namespace Git.Lfx.Live.Test {
 
                     using (var altDir = new TempDir()) {
                         // create alternate cache, promote file
-                        var altCache = new LfxBlobCache(altDir, cache);
+                        var altCache = new LfxCache(altDir, cache);
 
                         // promote
                         Assert.IsTrue(altCache.Promote(hash));
@@ -98,13 +98,13 @@ namespace Git.Lfx.Live.Test {
 
                     using (var altDir = new TempDir()) {
                         // create alternate cache, promote file
-                        var altCache = new LfxBlobCache(altDir, cache);
+                        var altCache = new LfxCache(altDir, cache);
 
                         // promote all files;
                         altCache.ToArray();
 
                         // promote
-                        LfxBlob altBlob;
+                        LfxTarget altBlob;
                         Assert.IsTrue(altCache.TryGet(hash, out altBlob));
                         Assert.IsTrue(altCache.Contains(altBlob));
                         Assert.IsFalse(altCache.Contains(blob));
@@ -112,7 +112,7 @@ namespace Git.Lfx.Live.Test {
 
                     using (var altDir = new TempDir()) {
                         // create alternate cache, promote file
-                        var altCache = new LfxBlobCache(altDir, cache);
+                        var altCache = new LfxCache(altDir, cache);
 
                         // ask child cache to download same file as parent
                         var altBlob = altCache.Load(pointer);

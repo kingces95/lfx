@@ -1,0 +1,16 @@
+﻿.bin - metadata about binaries
+    files are xml pointers to files or directories
+bin - git ignored directory containing binaries
+    junctions to directory, hardlink to files
+
+%lfxCache%
+    file
+        [hash]
+    dir
+        [hash]
+
+operations
+    add
+        type: zip, exe
+        url: download
+        
