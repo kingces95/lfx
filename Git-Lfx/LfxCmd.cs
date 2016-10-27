@@ -15,17 +15,8 @@ namespace Lfx {
 
     public enum LfxCmdSwitches {
         Quite, Q,
-    }
-
-    public static class Extensions {
-        public static bool EqualsIgnoreCase(this string source, string target) {
-            return string.Compare(source, target, true) == 0;
-        }
-        public static string ExpandOrTrim(this string source, int length) {
-            if (source.Length > length)
-                return source.Substring(0, length);
-            return source.PadRight(length);
-        }
+        Exe,
+        Zip,
     }
 
     public sealed class LfxCmd {
@@ -155,9 +146,13 @@ namespace Lfx {
             Log();
             Log("Env                    Dump environment.");
             Log();
-            Log("Fetch <url>            Download and cache the file referencd by the url.");
+            Log("Fetch <url> [<cmd>]    Download and cache the file referencd by the url and echo pointer.");
+            Log("    -q, --quite            Suppress progress reporting.");
+            Log("    --zip                  Url points to zip archive.");
+            Log("    --exe                  Url points to self expanding archive");
+            Log("                               <cmd> must be specified with '{0}' in place of extraction directory.");
             Log();
-            Log("Sync                   Synchronize dls directory content pointed to in .dls directory.");
+            Log("Reset                  Reset lfx directory content using pointers in .lfx directory.");
             Log("    -q, --quite            Suppress progress reporting.");
         }
 
@@ -178,49 +173,62 @@ namespace Lfx {
             Log($"Cache:");
             var cache = env.Cache;
             while (cache != null) {
-                Log($"  {nameof(cache.RootDir)}: {cache.RootDir}");
-                Log($"    {nameof(cache.IsExpanded)}={cache.IsExpanded}");
+                Log($"  {nameof(cache.CacheDir)}: {cache.CacheDir}");
+                Log($"    {nameof(cache.IsCompressed)}={cache.IsCompressed}");
                 Log($"    {nameof(cache.IsReadOnly)}={cache.IsReadOnly}");
-                Log($"    {nameof(cache.CacheDir)}: {cache.CacheDir}");
-                Log($"    {nameof(cache.TempDir)}: {cache.TempDir}");
-                if (cache.IsExpanded)
-                    Log($"    {nameof(cache.ExpandedDir)}: {cache.ExpandedDir}");
-                if (!cache.IsExpanded || cache.Parent == null)
-                    Log($"    {nameof(cache.CompressedDir)}: {cache.CompressedDir}");
                 Log();
 
                 cache = cache.Parent;
             }
         }
         public void Fetch() {
-            // fetch https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/PortableGit-2.10.1-32-bit.7z.exe
+            // fetch https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/PortableGit-2.10.1-32-bit.7z.exe -o"{0}" -y
 
             var args = Parse(
                 minArgs: 1,
-                maxArgs: 1
+                maxArgs: 2,
+                switchInfo: GitCmdSwitchInfo.Create(
+                    LfxCmdSwitches.Quite, LfxCmdSwitches.Q,
+                    LfxCmdSwitches.Exe,
+                    LfxCmdSwitches.Zip
+               )
             );
 
-            using (var fTempDir = new TempDir(@"f:\lfx\")) {
-                using (var cTempDir = new TempDir(@"c:\lfx\")) {
-                    //var packedCache = new LfxBusStore(@"c:\lfx\packed\", @"c:\lfx\packed\temp\");
-                    //var unpackedCache = new LfxDiskStore(packedCache, @"f:\lfx\unpacked\", @"f:\lfx\unpacked\temp\");
+            var isQuiet = args.IsSet(LfxCmdSwitches.Quite | LfxCmdSwitches.Q);
+            var isExe = args.IsSet(LfxCmdSwitches.Exe);
+            var isZip = args.IsSet(LfxCmdSwitches.Zip);
+            var url = new Uri(args[0]);
 
-                    //long total = 0;
-                    //packedCache.OnGrowth += l => {
-                    //    total += l;
-                    //    Console.Write($"L1: {total}");
-                    //    Console.CursorLeft = 0;
-                    //};
-                    //unpackedCache.OnGrowth += l => {
-                    //    total += l;
-                    //    Console.Write($"L2: {total}");
-                    //    Console.CursorLeft = 0;
-                    //};
+            LfxPointer pointer;
+            if (isZip) // zip
+                pointer = LfxPointer.CreateZip(url);
 
-                    //var resultTask = unpackedCache.GetOrLoadValueAsync(LfxPointer.CreateFile(new Uri(args[0])));
-                    //resultTask.Wait();
+            else if (isExe) // exe
+                pointer = LfxPointer.CreateExe(url, args[1]);
+
+            else // file
+                pointer = LfxPointer.CreateFile(url);
+
+            var env = new LfxEnv();
+
+            long copy = 0;
+            long download = 0;
+            long expand = 0;
+            env.Cache.OnProgress += (type, progress) => {
+                lock (env) {
+                    switch (type) {
+                        case LfxProgressType.Copy: copy++; break;
+                        case LfxProgressType.Download: download++; break;
+                        case LfxProgressType.Expand: expand++; break;
+                    }
+
+                    Console.Write($"Download: {download}, Copy: {copy}, Expand: {expand}");
+                    Console.CursorLeft = 0;
                 }
-            }
+            };
+
+            pointer = env.Cache.CreatePointer(pointer).Await();
+            Log($"{pointer}");
         }
         public void Checkout() {
             //var args = Parse(

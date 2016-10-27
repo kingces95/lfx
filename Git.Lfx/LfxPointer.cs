@@ -11,37 +11,23 @@ namespace Git.Lfx {
         public const int CurrentVersion = 1;
 
         public static LfxPointer CreateFile(Uri url) {
-            return new LfxPointer(LfxPointerType.File) {
-                m_version = CurrentVersion,
-                m_url = url,
-            };
+            return new LfxPointer(LfxPointerType.File, url);
         }
-        public static LfxPointer CreateFile(int version, Uri url, int size, LfxHash hash, string name, DateTime timeStamp) {
-            return new LfxPointer(LfxPointerType.File) {
-                m_version = version,
-                m_url = url,
-                m_size = size,
-                m_hash = hash,
-                m_name = name,
-                m_timeStamp = timeStamp
-            };
+        public static LfxPointer CreateExe(Uri url, string args) {
+            return new LfxPointer(LfxPointerType.Exe, url, args: args);
         }
-        public static LfxPointer CreateExe(int version, Uri url, int size, LfxHash hash, int contentSize, string args) {
-            return new LfxPointer(LfxPointerType.Exe) {
-                m_version = version,
-                m_url = url,
-                m_size = size,
-                m_hash = hash,
-                m_args = args,
-            };
+        public static LfxPointer CreateZip(Uri url) {
+            return new LfxPointer(LfxPointerType.Zip, url);
         }
-        public static LfxPointer CreateZip(int version, Uri url, int size, LfxHash hash, int contentSize) {
-            return new LfxPointer(LfxPointerType.Zip) {
-                m_version = version,
-                m_url = url,
-                m_size = size,
-                m_hash = hash,
-            };
+
+        public static LfxPointer CreateFile(Uri url, long size, LfxHash hash) {
+            return new LfxPointer(LfxPointerType.File, url, hash, size);
+        }
+        public static LfxPointer CreateExe(Uri url, long size, LfxHash hash, long contentSize, string args) {
+            return new LfxPointer(LfxPointerType.Exe, url, hash, size, contentSize, args);
+        }
+        public static LfxPointer CreateZip(Uri url, long size, LfxHash hash, long contentSize) {
+            return new LfxPointer(LfxPointerType.Zip, url, hash, size, contentSize);
         }
 
         public static LfxPointer Load(string path) {
@@ -56,7 +42,7 @@ namespace Git.Lfx {
                 // version
                 var versionLine = sr.ReadLine();
                 int version;
-                if (!int.TryParse(versionLine, out version) || version != CurrentVersion)
+                if (!int.TryParse(versionLine, out version))
                     throw new Exception($"LfxPointer '{path}' has unrecognized version '{versionLine}'.");
 
                 // url
@@ -65,39 +51,22 @@ namespace Git.Lfx {
                 if (!Uri.TryCreate(urlLine, UriKind.Absolute, out url))
                     throw new Exception($"LfxPointer '{path}' has unrecognized url '{urlLine}'.");
 
-                // size
-                var sizeLine = sr.ReadLine();
-                int size;
-                if (!int.TryParse(sizeLine, out size))
-                    throw new Exception($"LfxPointer '{path}' has unrecognized size '{sizeLine}'.");
-
                 // hash
                 var hashLine = sr.ReadLine();
                 LfxHash hash;
                 if (!LfxHash.TryParse(hashLine, out hash))
                     throw new Exception($"LfxPointer '{path}' has unrecognized url '{urlLine}'.");
 
+                // size
+                var sizeLine = sr.ReadLine();
+                int size;
+                if (!int.TryParse(sizeLine, out size))
+                    throw new Exception($"LfxPointer '{path}' has unrecognized size '{sizeLine}'.");
+
                 LfxPointer pointer = default(LfxPointer);
 
-                // file
-                if (type == LfxPointerType.File) {
-
-                    // name
-                    var name = sr.ReadLine();
-                    if (string.IsNullOrEmpty(name))
-                        throw new Exception($"LfxPointer '{path}' has no name specified.");
-
-                    // timeStamp
-                    var timeStampLine = sr.ReadLine();
-                    DateTime timeStamp;
-                    if (!DateTime.TryParse(timeStampLine, out timeStamp))
-                        throw new Exception($"LfxPointer '{path}' has unrecognized timestamp '{timeStamp}'.");
-
-                    pointer = CreateFile(version, url, size, hash, name, timeStamp);
-                } 
-                
                 // archive
-                else {
+                if (type != LfxPointerType.File) {
 
                     // content size
                     var contentSizeLine = sr.ReadLine();
@@ -107,7 +76,7 @@ namespace Git.Lfx {
 
                     // zip
                     if (type == LfxPointerType.Zip) {
-                        pointer = CreateZip(version, url, size, hash, contentSize);
+                        pointer = new LfxPointer(LfxPointerType.Zip, url, hash, size, contentSize);
                     }
 
                     // exe
@@ -118,7 +87,7 @@ namespace Git.Lfx {
                         if (cmd == null)
                             throw new Exception($"LfxPointer '{path}' has no cmd specified.");
 
-                        pointer = CreateExe(version, url, size, hash, contentSize, cmd);
+                        pointer = new LfxPointer(LfxPointerType.Exe, url, hash, size, contentSize, cmd);
                     }
                 }
 
@@ -132,16 +101,27 @@ namespace Git.Lfx {
         }
 
         private LfxPointerType m_type;
-        private int m_version;
         private Uri m_url;
-        private int m_size;
         private LfxHash m_hash;
+        private long m_size;
+        private long m_contentSize;
         private string m_args;
-        private string m_name;
-        private DateTime m_timeStamp;
 
-        private LfxPointer(LfxPointerType type) : this() {
+        private LfxPointer(
+            LfxPointerType type,
+            Uri url,
+            LfxHash? hash = null,
+            long? size = null,
+            long? contentSize = null,
+            string args = null)
+            : this() {
+
             m_type = type;
+            m_url = url;
+            m_size = size ?? -1;
+            m_hash = hash ?? default(LfxHash);
+            m_contentSize = contentSize ?? -1L;
+            m_args = args;
         }
 
         public LfxPointerType Type => m_type;
@@ -149,30 +129,39 @@ namespace Git.Lfx {
         public bool IsZip => Type == LfxPointerType.Zip;
         public bool IsFile => Type == LfxPointerType.File;
 
-        public int Size => m_size;
-        public LfxHash Hash => m_hash;
-        public int Version => m_version; 
+        public int Version => CurrentVersion;
         public Uri Url => m_url;
+        public long Size => m_size;
+        public LfxHash Hash => m_hash;
+        public long ContentSize => m_contentSize;
         public string Args => m_args;
-        public string Name => m_name;
-        public DateTime TimeStamp => m_timeStamp;
 
-        public void Save(string path) {
-            using (var sw = new StreamWriter(path)) {
-                sw.WriteLine(Type);
-                sw.WriteLine(Version);
-                sw.WriteLine(Url);
-                sw.WriteLine(Size);
-                sw.WriteLine(Hash);
+        public void Save(StreamWriter stream) {
+            stream.WriteLine(Type);
+            stream.WriteLine(Version);
+            stream.WriteLine(Url);
+            stream.WriteLine(Hash);
+            stream.WriteLine(Size);
 
-                if (Type == LfxPointerType.Exe) {
-                    sw.WriteLine(Args);
-                }
+            if (Type == LfxPointerType.File)
+                return;
 
-                if (Type == LfxPointerType.File) {
-                    sw.WriteLine(Name);
-                    sw.WriteLine(TimeStamp.ToString("O"));
-                }
+            stream.WriteLine(ContentSize);
+
+            if (Type == LfxPointerType.Zip)
+                return;
+
+            stream.WriteLine(Args);
+        }
+        public string Value {
+            get {
+                var ms = new MemoryStream();
+                using (var stream = new StreamWriter(ms))
+                    Save(stream);
+
+                ms.Position = 0;
+                using (var stream = new StreamReader(ms))
+                    return stream.ReadToEnd();
             }
         }
 
@@ -184,43 +173,29 @@ namespace Git.Lfx {
             if (Version != other.Version)
                 return false;
 
-            if (Size != other.Size)
-                return false;
-
             if (Url != other.Url)
                 return false;
 
-            if (Type == LfxPointerType.Exe) {
+            if (Size != other.Size)
+                return false;
 
-                if (Args != other.Args)
-                    return false;
-            }
+            if (ContentSize != other.ContentSize)
+                return false;
 
-            else if (Type == LfxPointerType.File) {
-
-                if (Name != other.m_name)
-                    return false;
-
-                if (TimeStamp != other.TimeStamp)
-                    return false;
-            }
+            if (Args != other.Args)
+                return false;
 
             return true;
         }
         public override int GetHashCode() {
             var hashcode = 0;
+
             hashcode ^= Type.GetHashCode();
             hashcode ^= Version.GetHashCode();
-            hashcode ^= Size.GetHashCode();
             hashcode ^= Url.GetHashCode();
-
-            if (Type == LfxPointerType.Exe)
-                hashcode ^= Args.GetHashCode();
-
-            else if (Type == LfxPointerType.File) {
-                hashcode ^= Name.GetHashCode();
-                hashcode ^= TimeStamp.GetHashCode();
-            }
+            hashcode ^= Size.GetHashCode();
+            hashcode ^= ContentSize.GetHashCode();
+            hashcode ^= Args?.GetHashCode() ?? 0;
 
             return hashcode;
         }

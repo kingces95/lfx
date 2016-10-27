@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Runtime.InteropServices;
+using System.IO.Compression;
 
 namespace Util {
 
@@ -171,13 +172,52 @@ namespace Util {
                 onProgress(bytesRead);
             }
         }
+        public static async Task ExpandZip(
+            this string zipFilePath, 
+            string targetDir, 
+            Action<long> onProgress = null) {
 
-        public static bool CanHardLinkTo(this string path, string target) {
-            return string.Equals(
-                IOPath.GetPathRoot(path),
-                IOPath.GetPathRoot(target),
-                StringComparison.InvariantCultureIgnoreCase
+            var zipFile = ZipFile.Open(zipFilePath, ZipArchiveMode.Read);
+
+            // allow parallel foreach to yield thread
+            await Task.Run(() =>
+
+                // unzip entries in parallel
+                Parallel.ForEach(zipFile.Entries, entry => {
+
+                    // ignore directories
+                    if (Path.GetFileName(entry.FullName).Length == 0)
+                        return;
+
+                    // throw if unzipping target is outside of targetDir
+                    var targetPath = Path.Combine(targetDir, entry.FullName);
+                    if (!targetPath.StartsWith(targetDir))
+                        throw new ArgumentException(
+                            $"Zip package '{zipFilePath}' entry '{entry.FullName}' is outside package.");
+
+                    // unzip entry
+                    using (var targeStream = File.OpenWrite(targetPath)) {
+                        using (var sourceStream = entry.Open()) {
+
+                            // report progress while unzipping
+                            sourceStream.CopyTo(targeStream, onProgress: onProgress);
+                        }
+                    }
+                })
             );
+        }
+
+        public static bool EqualsIgnoreCase(this string source, string target) {
+            return string.Compare(source, target, true) == 0;
+        }
+        public static string ExpandOrTrim(this string source, int length) {
+            if (source.Length > length)
+                return source.Substring(0, length);
+            return source.PadRight(length);
+        }
+
+        public static bool PathRootEquals(this string path, string target) {
+            return IOPath.GetPathRoot(path).EqualsIgnoreCase(IOPath.GetPathRoot(target));
         }
         public static async Task CopyToAsync(this string path, string target,
             int bufferSize = DefaultBufferSize,
@@ -191,6 +231,36 @@ namespace Util {
         public static void HardLinkTo(this string path, string target) {
             if (!Kernel32.CreateHardLink(target, path, IntPtr.Zero))
                 throw new ArgumentException($"Failed to create hard link {path} => {target}.");
+        }
+        public static bool FileOrDirectoryExists(this string path) {
+            return File.Exists(path) || Directory.Exists(path);
+        }
+        public static void MoveFileOrDirectory(this string sourcePath, string targetPath) {
+
+            if (File.Exists(sourcePath))
+                File.Move(sourcePath, targetPath);
+
+            else if (Directory.Exists(sourcePath))
+                Directory.Move(sourcePath, targetPath);
+
+            else
+                throw new Exception($"Cannot move non-existant '{sourcePath}' to '{targetPath}'.");
+        }
+        public static bool DeleteFileOrDirectory(this string path) {
+
+            // delete file
+            if (File.Exists(path)) {
+                File.Delete(path);
+                return true;
+            }
+
+            // delete directory
+            if (Directory.Exists(path)) {
+                Directory.Delete(path, recursive: true);
+                return true;
+            }
+
+            return false;
         }
 
         public static bool IsUncPath(this string path) => new Uri(path).IsUnc;
@@ -235,6 +305,15 @@ namespace Util {
         }
         public static bool IsDir(this string path) {
             return path.EndsWith($"{IOPath.DirectorySeparatorChar}");
+        }
+        public static long GetFileSize(this string path) {
+            return new FileInfo(path).Length;
+        }
+        public static long GetDirectorySize(this string path) {
+            var dirInfo = new DirectoryInfo(path);
+            var size = dirInfo.GetFiles().Sum(o => o.Length);
+            Parallel.ForEach(dirInfo.GetDirectories(), o => size += GetDirectorySize(o.FullName));
+            return size;
         }
 
         public static void CopyTo(this StreamReader reader, StreamWriter target) {

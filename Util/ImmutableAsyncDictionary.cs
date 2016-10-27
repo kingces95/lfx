@@ -5,19 +5,32 @@ using System.Threading.Tasks;
 
 namespace Util {
 
-    public abstract class ImmutableAsyncDictionary<TKey, TPointer, T> {
+    public sealed class ImmutableAsyncDictionary<TKey, TPointer, T> {
 
         private readonly ConcurrentDictionary<TKey, Task<T>> m_values;
+        private readonly Func<TPointer, TKey> m_getKey;
+        private readonly Func<TKey, Tuple<bool, T>> m_tryLoadValue;
+        private readonly Func<TPointer, Task<T>> m_loadValueAsync;
 
-        public ImmutableAsyncDictionary() {
+        public ImmutableAsyncDictionary(
+            Func<TPointer, TKey> getKey,
+            Func<TKey, Tuple<bool, T>> tryLoadValue,
+            Func<TPointer, Task<T>> loadValueAsync) {
+
             m_values = new ConcurrentDictionary<TKey, Task<T>>();
+            m_getKey = getKey;
+            m_tryLoadValue = tryLoadValue;
+            m_loadValueAsync = loadValueAsync;
         }
 
-        protected abstract TKey GetKey(TPointer pointer);
-        protected abstract Task<T> LoadValueAsync(TPointer pointer);
-        protected virtual bool TryLoadValueSync(TKey key, out T value) {
+        private bool TryLoadValue(TKey key, out T value) {
             value = default(T);
-            return false;
+            var result = m_tryLoadValue(key);
+            if (!result.Item1)
+                return false;
+
+            value = result.Item2;
+            return true;
         }
 
         public event Action<TPointer> OnAsyncLoad;
@@ -41,7 +54,7 @@ namespace Util {
         }
         public async Task<T> GetOrLoadValueAsync(TPointer pointer) {
 
-            TKey key = GetKey(pointer);
+            TKey key = m_getKey(pointer);
             ManualResetEvent mre = null;
             Task<T> freshTask = null;
             Exception ex = null;
@@ -50,7 +63,7 @@ namespace Util {
 
                 // try synchronous load
                 T value;
-                if (TryLoadValueSync(key, out value))
+                if (TryLoadValue(key, out value))
                     return Task.FromResult(value);
 
                 // threads not driving async load block on WaitHandle
@@ -72,7 +85,7 @@ namespace Util {
             try {
                 // async load!
                 OnAsyncLoad?.Invoke(pointer);
-                var loadResult = await LoadValueAsync(pointer);
+                var loadResult = await m_loadValueAsync(pointer);
 
                 // cache result, free WaitHandle
                 m_values[key] = Task.FromResult(loadResult);

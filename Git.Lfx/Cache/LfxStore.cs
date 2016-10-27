@@ -1,151 +1,266 @@
-﻿using System.Collections.Generic;
-using System.IO;
-using IODirectory = System.IO.Directory;
-using IOFile = System.IO.File;
-using System.Linq;
-using System.Collections;
+﻿using System.IO;
 using Util;
 using System.Threading.Tasks;
+using System.Text;
 using System;
-using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Net;
 
 namespace Git.Lfx {
 
-    public sealed class LfxStore : IEnumerable<LfxTarget> {
-        private readonly string m_dir;
-
-        public LfxStore(string dir) {
-            m_dir = dir.ToDir();
-            IODirectory.CreateDirectory(m_dir);
-        }
-
-        private string GetPath(LfxHash hash) {
-            return Path.Combine(
-                m_dir,
-                hash.ToString().Substring(0, 2),
-                hash.ToString().Substring(2, 2),
-                hash
-            );
-        }
-        private IEnumerable<string> Files => IODirectory.GetFiles(m_dir, "*", SearchOption.AllDirectories);
-        private IEnumerable<string> Directories => IODirectory.GetDirectories(m_dir)
-            .SelectMany(o => IODirectory.GetDirectories(o))
-            .SelectMany(o => IODirectory.GetDirectories(o));
-        private IEnumerable<string> Targets => Files.Concat(Directories);
-
-        public string Directory => m_dir;
-        public LfxTarget Add(LfxHash hash, string path) {
-
-            var cachePath = GetPath(hash);
-            IODirectory.CreateDirectory(Path.GetDirectoryName(cachePath));
-
-            // take ownership of file
-            if (IOFile.Exists(path)) {
-                IOFile.Move(path, cachePath);
-            }
-
-            // take ownership of directory
-            else {
-                IODirectory.Move(path, cachePath);
-            }
-
-            return new LfxTarget(this, hash, cachePath);
-        }
-        public bool TryGet(LfxHash hash, out LfxTarget target) {
-            target = default(LfxTarget);
-            var path = GetPath(hash);
-            if (!IOFile.Exists(path) && !IODirectory.Exists(path))
-                return false;
-            target = new LfxTarget(this, hash, path);
-            return true;
-        }
-        public bool Contains(LfxHash hash) {
-            LfxTarget target;
-            return TryGet(hash, out target);
-        }
-        public int Count => Targets.Count();
-        public long Size => Targets.Sum(o => new FileInfo(o).Length);
-        public void Clear() => IODirectory.Delete(m_dir, recursive: true);
-
-        public override string ToString() => $"{m_dir}";
-
-        public IEnumerator<LfxTarget> GetEnumerator() {
-            return Targets
-                .Select(o => new LfxTarget(this, LfxHash.Parse(Path.GetFileName(o)), o))
-                .GetEnumerator();
-        }
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-    }
-
-    [Flags]
-    public enum LfxStoreFlags {
+    public enum LfxProgressType {
         None = 0,
-        ReadOnly = 1 << 0,
-        Expanded = 1 << 1
+        Download = 1,
+        Copy = 2,
+        Expand = 3,
     }
-    public sealed class LfxDirectoryCache :
-        ImmutableAsyncDictionary<LfxHash, LfxPointer, string>,
-        IDisposable {
 
-        // _directory structure_
-        // root
-        //   temp
-        //     [random]
-        //   compressed
-        //     [0:2) of hash
-        //       [2:4) of hash
-        //   expanded
-        //     [0:2) of hash
-        //       [2:4) of hash
+    public abstract class LfxCache : IDisposable {
+        public const string LfxCacheDirName = @"lfx";
+        public const string PointerDirName = "pointers";
+        public const string UrlsDirName = "urls";
+        public const string CompressedDirName = "compressed";
+        public const string ExpandedDirName = "expanded";
+        public const string TempDirName = "temp";
+        public static readonly string DefaultUserCacheDir = Path.Combine(
+            Environment.GetEnvironmentVariable("APPDATA"),
+            LfxCacheDirName
+        ).ToDir();
 
-        private const string TempDirName = "temp";
-        private const string CompressedDirName = "compressed";
-        private const string ExpandedDirName = "expanded";
+        public static LfxCache CreateCache(
+            string diskCacheDir = null,
+            string busCacheDir = null,
+            string lanCacheDir = null,
+            string workingDir = null) {
 
-        private readonly string m_rootDir;
-        private readonly TempDir m_tempDir;
-        private readonly string m_compressedDir;
-        private readonly string m_expandedDir;
-        private readonly LfxDirectoryCache m_parent;
-        private readonly LfxStoreFlags m_flags;
+            LfxCache lanCache = null;
+            LfxCache busCache = null;
 
-        public LfxDirectoryCache(
-            string rootDir,
-            LfxStoreFlags flags = LfxStoreFlags.None, 
-            LfxDirectoryCache parent = null) {
+            // default working dir is temp dir
+            if (workingDir == null)
+                workingDir = Path.GetTempPath().GetDir();
 
-            m_flags = flags;
-            m_parent = parent;
-            m_rootDir = rootDir.ToDir();
+            // readonly (aka "lan") cache
+            if (lanCacheDir != null)
+                lanCache = new LfxReadOnlyCache(
+                    Path.Combine(lanCacheDir, CompressedDirName)
+                );
 
-            if (!IsReadOnly)
-                m_tempDir = new TempDir(Path.Combine(RootDir, TempDirName, Path.GetRandomFileName()));
+            // download (aka "bus") cache
+            if (busCacheDir != null)
+                busCache = new LfxDownloadCache(
+                    Path.Combine(busCacheDir, CompressedDirName),
+                    Path.Combine(busCacheDir, TempDirName, Path.GetRandomFileName()),
+                    lanCache
+                );
 
-            if (IsExpanded)
-                m_expandedDir = Path.Combine(RootDir, ExpandedDirName).ToDir();
+            // default diskCacheDir
+            if (diskCacheDir == null) {
 
-            if (!IsExpanded || Parent == null)
-                m_compressedDir = Path.Combine(RootDir, CompressedDirName).ToDir();
+                // if working dir partition equals %APPDATA% partition then put cache in %APPDATA%
+                var workingDirRoot = Path.GetPathRoot(workingDir);
+                if (workingDirRoot.EqualsIgnoreCase(Path.GetPathRoot(DefaultUserCacheDir)))
+                    diskCacheDir = DefaultUserCacheDir;
+
+                // else put cache at root of working dir
+                else
+                    diskCacheDir = Path.Combine(workingDirRoot, LfxCacheDirName);
+            }
+
+            // default download cache
+            if (busCache == null)
+                busCache = new LfxDownloadCache(
+                    Path.Combine(diskCacheDir, CompressedDirName),
+                    Path.Combine(diskCacheDir, TempDirName, Path.GetRandomFileName()),
+                    lanCache
+                );
+
+            // expanded (aka "disk") cache
+            var cache = new LfxExpandedCache(
+                Path.Combine(diskCacheDir, ExpandedDirName),
+                Path.Combine(diskCacheDir, TempDirName, Path.GetRandomFileName()),
+                busCache
+            );
+
+            return cache;
         }
 
-        private string GetCachePath(string cacheDir, string hash) {
-            return Path.Combine(
-                cacheDir,
-                hash.ToString().Substring(0, 2),
-                hash.ToString().Substring(2, 2),
-                hash
+        private readonly LfxCache m_parent;
+        private readonly ImmutableAsyncDictionary<LfxHash, LfxPointer, string> m_asyncDictionary;
+        private readonly ImmutablePathDictionary m_contentByHash;
+        private readonly ImmutablePathDictionary m_pointerByHash;
+        private readonly ImmutablePathDictionary m_pointerByUrl;
+
+        protected LfxCache(
+            string dir,
+            string tempDir,
+            LfxCache parent) {
+
+            m_parent = parent;
+
+            m_contentByHash = new ImmutablePathDictionary(dir);
+            m_contentByHash.OnCopyProgress += ReportCopyProgress;
+
+            m_pointerByHash = new ImmutablePathDictionary(Path.Combine(dir, PointerDirName));
+            m_pointerByUrl = new ImmutablePathDictionary(Path.Combine(dir, UrlsDirName));
+
+            m_asyncDictionary = new ImmutableAsyncDictionary<LfxHash, LfxPointer, string>(
+                getKey: pointer => pointer.Hash,
+                tryLoadValue: key => {
+                    string value;
+                    var success = m_contentByHash.TryGetValue(key, out value);
+                    return new Tuple<bool, string>(success, value);
+                },
+                loadValueAsync: GetOrLoadValueAsync
             );
         }
-        private async Task<string> Download(LfxPointer pointer) {
 
-            // download to temp incase of failed partial download 
+        private void ReportCopyProgress(long progress) => ReportProgress(LfxProgressType.Copy, progress);
+        private void ReportProgress(LfxProgressType type, long progress) {
+            OnProgress?.Invoke(type, progress);
+        }
+        private LfxPointer CreateFullPointer(LfxPointer partialPointer, string cachePath) {
+            var url = partialPointer.Url;
+            var hash = LfxHash.Parse(Path.GetFileName(cachePath));
+            var fileSize = cachePath.GetFileSize();
+
+            // file
+            if (partialPointer.IsFile)
+                return LfxPointer.CreateFile(url, fileSize, hash);
+
+            // archive
+            string archivePath;
+            m_parent.m_asyncDictionary.TryGetValue(hash, out archivePath);
+            fileSize = archivePath.GetFileSize();
+
+            var dirSize = cachePath.GetDirectorySize();
+
+            // exe
+            if (partialPointer.IsExe)
+                return LfxPointer.CreateExe(url, fileSize, hash, dirSize, partialPointer.Args);
+
+            // zip
+            return LfxPointer.CreateZip(url, fileSize, hash, dirSize);
+        }
+
+        protected ImmutablePathDictionary Store => m_contentByHash;
+        protected void ReportDownloadProgress(long progress) => ReportProgress(LfxProgressType.Download, progress);
+        protected void ReportExpansionProgress(long progress) => ReportProgress(LfxProgressType.Expand, progress);
+
+        protected abstract Task<string> GetOrLoadValueAsync(LfxPointer pointer);
+
+        public LfxCache Parent => m_parent;
+        public string CacheDir => m_contentByHash.ToString();
+        public string TempDir => m_contentByHash.TempDir;
+        public event Action<LfxProgressType, long> OnProgress;
+        public async Task<LfxPointer> CreatePointer(LfxPointer pointer) {
+
+            if (IsCompressed)
+                throw new InvalidOperationException(
+                    $"Cache '{this}' is compressed and so cannot create a poitner.");
+
+            var urlLower = pointer.Url.ToString().ToLower();
+            var urlHash = LfxHash.Compute(urlLower, Encoding.UTF8);
+
+            // try url cache
+            string pointerPath;
+            if (m_pointerByUrl.TryGetValue(urlHash, out pointerPath))
+                return LfxPointer.Load(pointerPath);
+
+            // resolve pointer!
+            var cachePath = await ResolvePointer(pointer);
+            if (cachePath == null)
+                throw new ArgumentException(
+                    $"Failed to create pointer '{pointer}'.");
+
+            // flesh out pointer; fill in hash and sizes
+            pointer = CreateFullPointer(pointer, cachePath);
+
+            // write pointer metadata
+            await m_pointerByHash.PutText(pointer.Value, pointer.Hash);
+
+            // write url metadata
+            await m_pointerByUrl.PutText(pointer.Value, urlHash);
+
+            return pointer;
+        }
+        public async Task<string> ResolvePointer(LfxPointer pointer) {
+            return await m_asyncDictionary.GetOrLoadValueAsync(pointer);
+        }
+        public virtual bool IsCompressed => false;
+        public virtual bool IsReadOnly => false;
+
+        public void Dispose() {
+            m_contentByHash?.Dispose();
+        }
+
+        public override string ToString() => m_contentByHash.ToString();
+    }
+    internal sealed class LfxExpandedCache : LfxCache {
+
+        public LfxExpandedCache(
+            string dir,
+            string tempDir,
+            LfxCache parent) : base(dir, tempDir, parent) {
+
+            if (parent == null)
+                throw new ArgumentNullException(nameof(parent));
+        }
+
+        protected override async Task<string> GetOrLoadValueAsync(LfxPointer pointer) {
+
+            // get compressed file
+            var compressedPath = await Parent.ResolvePointer(pointer);
+            if (compressedPath == null)
+                throw new ArgumentException(
+                    $"Url '{pointer.Url}' failed to resolve.");
+
+            // cache path
+            var hash = Path.GetFileName(compressedPath);
+
+            // copy file or hard link to file
+            if (pointer.IsFile)
+                return await Store.Put(compressedPath, hash, preferHardLink: true);
+
+            // expand archive into directory
+            var tempDir = Path.Combine(TempDir, Path.GetTempFileName());
+
+            // zip
+            if (pointer.IsZip)
+                await compressedPath.ExpandZip(tempDir, ReportExpansionProgress);
+
+            // exe
+            else if (pointer.IsExe)
+                await compressedPath.ExpandExe(tempDir, pointer.Args, ReportExpansionProgress);
+
+            // move directory
+            return await Store.Take(tempDir, hash);
+        }
+    }
+    internal sealed class LfxDownloadCache : LfxCache {
+
+        public LfxDownloadCache(
+            string dir,
+            string tempDir,
+            LfxCache parent) : base(dir, tempDir, parent) {
+        }
+
+        public override bool IsCompressed => true;
+        protected override async Task<string> GetOrLoadValueAsync(LfxPointer pointer) {
+
+            // try parent
+            if (Parent != null) {
+                var parentPath = await Parent.ResolvePointer(pointer);
+                if (parentPath != null)
+                    return parentPath;
+            }
+
+            // download to temp incase of download fails
             var tempPath = Path.Combine(TempDir, Path.GetRandomFileName());
             var sha256 = SHA256.Create();
 
             // save to temp file
-            using (var fileStream = IOFile.OpenWrite(tempPath)) {
+            using (var fileStream = File.OpenWrite(tempPath)) {
 
                 // compute hash while saving file
                 using (var shaStream = new CryptoStream(fileStream, sha256, CryptoStreamMode.Write)) {
@@ -154,7 +269,7 @@ namespace Git.Lfx {
                     using (var downloadStream = await new WebClient().OpenReadTaskAsync(pointer.Url)) {
 
                         // save downloaded file to temp file while reporting progress
-                        await downloadStream.CopyToAsync(shaStream, onProgress: OnDownloadProgress);
+                        await downloadStream.CopyToAsync(shaStream, onProgress: ReportDownloadProgress);
                     }
                 }
             }
@@ -164,139 +279,17 @@ namespace Git.Lfx {
             if (!pointer.Hash.IsNull && pointer.Hash != hash)
                 throw new Exception($"Downloaded url '{pointer.Url}' hash '{hash}' is different than expected hash '{pointer.Hash}'.");
 
-            // sourcePath -> targetPath
-            var targetPath = GetCachePath(CompressedDir, hash);
-            IOFile.Move(tempPath, targetPath);
-
-            // result
-            return targetPath;
+            // stash compressed file
+            return await Store.Take(tempPath, hash);
         }
-        private async Task<string> Expand(LfxPointer pointer, string compressedPath) {
+    }
+    internal sealed class LfxReadOnlyCache : LfxCache {
+        public LfxReadOnlyCache(string dir) : base(dir, null, null) { }
 
-            // cache path
-            var cachePath = GetCachePath(ExpandedDir, Path.GetFileName(compressedPath));
-
-            // copy file or hard link to file
-            if (pointer.IsFile) {
-
-                // hard link (compressed file on same partition)
-                if (compressedPath.CanHardLinkTo(cachePath))
-                    compressedPath.HardLinkTo(cachePath);
-
-                // copy file (compressed file on separate partition)
-                else
-                    await compressedPath.CopyToAsync(cachePath, onProgress: OnCopyProgress);
-            }
-
-            // epxand archive into directory
-            else {
-                var tempDir = Path.Combine(TempDir, Path.GetTempFileName());
-
-                // zip
-                if (pointer.IsZip)
-                    await ExpandZip(compressedPath, tempDir);
-
-                // exe
-                else if (pointer.IsExe)
-                    await ExpandExe(compressedPath, pointer.Args, tempDir);
-
-                // move directory
-                Directory.Move(tempDir, cachePath);
-            }
-
-            return cachePath;
+        public override bool IsCompressed => true;
+        public override bool IsReadOnly => true;
+        protected override Task<string> GetOrLoadValueAsync(LfxPointer pointer) {
+            return Task.FromResult(default(string));
         }
-        private async Task ExpandExe(string exeFilePath, string arguments, string targetDir) {
-            var monitor = targetDir.MonitorGrowth(onGrowth: (path, delta) => OnExpansionProgress?.Invoke(delta));
-            var cmdStream = await Cmd.ExecuteAsync(exeFilePath, string.Format(arguments, targetDir));
-        }
-        private async Task ExpandZip(string zipFilePath, string targetDir) {
-            var zipFile = ZipFile.Open(zipFilePath, ZipArchiveMode.Read);
-
-            // allow parallel foreach to yield thread
-            await Task.Run(() =>
-
-                // unzip entries in parallel
-                Parallel.ForEach(zipFile.Entries, entry => {
-
-                    // ignore directories
-                    if (Path.GetFileName(entry.FullName).Length == 0)
-                        return;
-
-                    // throw if unzipping target is outside of targetDir
-                    var targetPath = Path.Combine(targetDir, entry.FullName);
-                    if (!targetPath.StartsWith(targetDir))
-                        throw new ArgumentException(
-                            $"Zip package '{zipFilePath}' entry '{entry.FullName}' is outside package.");
-
-                    // unzip entry
-                    using (var targeStream = File.OpenWrite(targetPath)) {
-                        using (var sourceStream = entry.Open()) {
-
-                            // report progress while unzipping
-                            sourceStream.CopyTo(targeStream, onProgress: OnExpansionProgress);
-                        }
-                    }
-                })
-            );
-        }
-        private async Task<string> LoadValueFromParentAsync(LfxPointer pointer) {
-
-            // try parent
-            if (m_parent != null) {
-                var parentPath = await m_parent.GetOrLoadValueAsync(pointer);
-                if (parentPath != null)
-                    return parentPath;
-            }
-
-            return await Download(pointer);
-        }
-
-        protected sealed override LfxHash GetKey(LfxPointer pointer) => pointer.Hash;
-        protected override bool TryLoadValueSync(LfxHash key, out string value) {
-            value = Path.Combine(CacheDir, key);
-            return IOFile.Exists(value) || IODirectory.Exists(value);
-        }
-        protected override async Task<string> LoadValueAsync(LfxPointer pointer) {
-
-            // read-only (lan) cache cannot load files
-            if (IsReadOnly)
-                return null;
-
-            // load file; will always download if no parent cache
-            string compressedPath = await LoadValueFromParentAsync(pointer);
-
-            // compressed (bus) cache holds only files
-            if (!IsExpanded)
-                return compressedPath;
-
-            // expanded (disk) cache decompresses files to directories
-            return await Expand(pointer, compressedPath);
-        }
-
-        public event Action<long> OnDownloadProgress;
-        public event Action<long> OnExpansionProgress;
-        public event Action<long> OnCopyProgress;
-
-        public LfxDirectoryCache Parent => m_parent;
-
-        public LfxStoreFlags Flags => m_flags;
-        public bool IsReadOnly => (Flags & LfxStoreFlags.ReadOnly) != 0;
-        public bool IsExpanded => (Flags & LfxStoreFlags.Expanded) != 0;
-
-        public string RootDir => m_rootDir;
-        public string TempDir => m_tempDir?.Path;
-        public string CompressedDir => m_compressedDir;
-        public string ExpandedDir => m_expandedDir;
-        public string CacheDir => IsExpanded ? ExpandedDir : CompressedDir;
-
-        public void Dispose() {
-            m_tempDir?.Dispose();
-        }
-        ~LfxDirectoryCache() {
-            Dispose();
-        }
-
-        public override string ToString() => CacheDir;
     }
 }

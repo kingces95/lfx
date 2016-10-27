@@ -48,13 +48,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Cache\LfxTarget.cs" />
     <Compile Include="Cache\LfxStore.cs" />
     <Compile Include="LfxConfigFile.cs" />
     <Compile Include="LfxConfig.cs" />
     <Compile Include="LfxCmd.cs" />
     <Compile Include="LfxHash.cs" />
-    <Compile Include="Cache\LfxCache.cs" />
     <Compile Include="LfxPointer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="..\AssemblyVersion.cs">
