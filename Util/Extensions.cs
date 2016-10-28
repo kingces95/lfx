@@ -242,6 +242,15 @@ namespace Util {
                 ignoreCase: false
             ) == 0;
         }
+        public static bool IsSubDirOf(this string path, string basePath) {
+            return !basePath.GetRecursiveDir(path).Contains("..");
+        }
+        public static bool PathRootEquals(this string path, string target) {
+            return IOPath.GetPathRoot(path).EqualsIgnoreCase(IOPath.GetPathRoot(target));
+        }
+        public static bool PathExistsAsFile(this string path) => File.Exists(path);
+        public static bool PathExistsAsDirectory(this string path) => Directory.Exists(path);
+        public static bool PathExists(this string path) => path.PathExistsAsFile() || path.PathExistsAsDirectory();
 
         // transforms
         public static string ToDir(this string dir) {
@@ -260,6 +269,9 @@ namespace Util {
             return dirName.ToDir();
         }
         public static string GetRecursiveDir(this string basePath, string subPath) {
+            if (!IOPath.IsPathRooted(subPath))
+                return subPath.GetDir();
+
             var relativeUri = new Uri(basePath).MakeRelativeUri(new Uri(subPath));
             var recursivePath = relativeUri.ToString().Replace("/", IOPath.DirectorySeparatorChar.ToString());
             return recursivePath.GetDir();
@@ -269,12 +281,6 @@ namespace Util {
         }
 
         // directory + file
-        public static bool PathRootEquals(this string path, string target) {
-            return IOPath.GetPathRoot(path).EqualsIgnoreCase(IOPath.GetPathRoot(target));
-        }
-        public static bool PathExists(this string path) {
-            return File.Exists(path) || Directory.Exists(path);
-        }
         public static void MovePath(this string sourcePath, string targetPath) {
             if (sourcePath == null)
                 throw new ArgumentNullException(nameof(sourcePath));
@@ -322,20 +328,50 @@ namespace Util {
         public static IEnumerable<string> GetFiles(this string path) {
             return Directory.GetFiles(path);
         }
-        public static IEnumerable<string> GetAllFiles(this string path) {
-            return Directory.GetFiles(path, "*", SearchOption.AllDirectories);
-        }
         public static IEnumerable<FileInfo> GetFileInfos(this string path) {
             return new DirectoryInfo(path).GetFiles();
+        }
+        public static IEnumerable<string> GetDirectories(this string path) {
+            return Directory.GetDirectories(path);
+        }
+        public static IEnumerable<DirectoryInfo> GetDirectoryInfos(this string path) {
+            return new DirectoryInfo(path).GetDirectories();
+        }
+        public static IEnumerable<string> GetAllFiles(this string path) {
+            return Directory.GetFiles(path, "*", SearchOption.AllDirectories);
         }
         public static IEnumerable<FileInfo> GetAllFileInfos(this string path) {
             return new DirectoryInfo(path).GetFiles("*", SearchOption.AllDirectories);
         }
 
-        // hardlink
-        public static void HardLinkTo(this string path, string target) {
-            if (!Kernel32.CreateHardLink(target, path, IntPtr.Zero))
-                throw new ArgumentException($"Failed to create hard link {path} => {target}.");
+        // aliases
+        public static string AliasPath(this string path, string target) {
+
+            if (path.PathExistsAsFile()) {
+                if (!Kernel32.CreateHardLink(target, path, IntPtr.Zero))
+                    throw new ArgumentException($"Failed to create hard link '{path}' -> '{target}'.");
+            }
+
+            else if (path.PathExistsAsDirectory()) {
+                JunctionPoint.Create(path, target, overwrite: false);
+            }
+
+            else throw new IOException($"The path '{path}' does not exist.");
+
+            return target;
+        }
+        public static IEnumerable<string> GetPathAliases(this string path) {
+            if (path.PathExistsAsFile())
+                return HardLinkInfo.GetLinks(path);
+
+            if (path.PathExistsAsDirectory()) {
+                if (!JunctionPoint.Exists(path))
+                    return Enumerable.Empty<string>();
+
+                return new[] { JunctionPoint.GetTarget(path) };
+            }
+            
+            else throw new IOException($"The path '{path}' does not exist.");
         }
     }
 
@@ -465,6 +501,13 @@ namespace Util {
 
     // misc
     public static partial class Extensions {
+
+        // enum
+        public static T ToEnum<T>(this string value, bool ignoreCase = false) {
+            if (value == null)
+                return (T)Enum.ToObject(typeof(T), 0);
+            return (T)Enum.Parse(typeof(T), value, ignoreCase);
+        }
 
         // string
         public static bool EqualsIgnoreCase(this string source, string target) {

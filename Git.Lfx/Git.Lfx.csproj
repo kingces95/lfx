@@ -48,7 +48,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Cache\LfxStore.cs" />
+    <Compile Include="LfxStore.cs" />
     <Compile Include="LfxConfigFile.cs" />
     <Compile Include="LfxConfig.cs" />
     <Compile Include="LfxCmd.cs" />

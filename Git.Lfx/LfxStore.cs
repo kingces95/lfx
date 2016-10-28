@@ -5,6 +5,8 @@ using System.Text;
 using System;
 using System.Security.Cryptography;
 using System.Net;
+using System.Collections.Generic;
+using System.Collections;
 
 namespace Git.Lfx {
 
@@ -17,6 +19,7 @@ namespace Git.Lfx {
 
     public abstract class LfxCache : 
         ImmutableAsyncDictionary<LfxHash, LfxId, string>,
+        IEnumerable<KeyValuePair<LfxPointer, string>>,
         IDisposable {
 
         public const string PointerDirName = "pointers";
@@ -123,6 +126,15 @@ namespace Git.Lfx {
 
         public event Action<LfxProgressType, long> OnProgress;
 
+        public void Clean() {
+            m_hashToContent.Clean();
+            m_hashToContent?.Clean();
+        }
+        public void Clear() {
+            m_hashToContent.Clear();
+            m_hashToContent?.Clear();
+        }
+
         public LfxPointer FetchFile(Uri url) {
             return FetchUrl(url, hash => LfxId.CreateFile(url, hash));
         }
@@ -132,6 +144,11 @@ namespace Git.Lfx {
         public LfxPointer FetchExe(Uri url, string args) {
             return FetchUrl(url, hash => LfxId.CreateExe(url, args, hash));
         }
+
+        public IEnumerator<KeyValuePair<LfxPointer, string>> GetEnumerator() {
+            throw new NotImplementedException();
+        }
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         public void Dispose() {
             m_hashToContent?.Dispose();
@@ -173,7 +190,9 @@ namespace Git.Lfx {
             var cachePath = GetOrLoadValueAsync(id).Await();
 
             // create poitner
-            return LfxPointer.Create(id, cachePath, compressedPath);
+            var pointer = LfxPointer.Create(id, cachePath, compressedPath);
+
+            return pointer;
         }
         protected override async Task<string> LoadValueAsync(LfxId id) {
 

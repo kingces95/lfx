@@ -17,6 +17,9 @@ namespace Lfx {
         Quite, Q,
         Exe,
         Zip,
+        Clean,
+        Clear,
+        Force, F,
     }
 
     public sealed class LfxCmd {
@@ -24,11 +27,13 @@ namespace Lfx {
 
         private readonly object Lock = new object();
         private readonly string m_commandLine;
+        private readonly LfxEnv m_env;
 
         public static void Execute(string commandLine) => new LfxCmd(commandLine).Execute();
 
         private LfxCmd(string commandLine) {
             m_commandLine = commandLine;
+            m_env = new LfxEnv();
         }
 
         private void Execute() {
@@ -86,11 +91,12 @@ namespace Lfx {
         private void Log(string message = null) {
             Console.WriteLine(message);
         }
-        private Action<LfxProgressType, long> LogProgress() {
+        private void LogProgress() {
             long copy = 0;
             long download = 0;
             long expand = 0;
-            return (type, progress) => {
+
+            m_env.OnProgress += (type, progress) => {
                 lock (this) {
                     switch (type) {
                         case LfxProgressType.Copy: copy += progress; break;
@@ -156,46 +162,16 @@ namespace Lfx {
                 .ExpandOrTrim(Console.BufferWidth - 1));
             Console.WriteLine();
         }
+        private void FetchOrPull(bool isPull) {
 
-        public void Help() {
-            Log("git-lfx/0.2.0 (GitHub; corclr)");
-            Log("git lfx <command> [<args>]");
-            Log();
-            Log("Env                            Dump environment.");
-            Log();
-            Log("Get <url> [<cmd>] [<file>]     Download content into lfx directory (or echo pointer).");
-            Log("    -q, --quite                    Suppress progress reporting.");
-            Log("    --zip                          Url points to zip archive.");
-            Log("    --exe                          Url points to self expanding archive. Use '{0}' in <cmd> for target directory.");
-            Log();
-            Log("Sync                           Sync content in lfx directory with pointers in .lfx directory.");
-            Log("    -q, --quite                    Suppress progress reporting.");
-        }
-
-        public void Env() {
-            var env = new LfxEnv();
-            Log($"Environment Variables:");
-            Log($"  {LfxEnv.EnvironmentVariable.DiskCacheName}={LfxEnv.EnvironmentVariable.DiskCache}");
-            Log($"  {LfxEnv.EnvironmentVariable.BusCacheName}={LfxEnv.EnvironmentVariable.BusCache}");
-            Log($"  {LfxEnv.EnvironmentVariable.LanCacheName}={LfxEnv.EnvironmentVariable.LanCache}");
-            Log();
-
-            Log($"Directories:");
-            Log($"  {nameof(env.WorkingDir)}: {env.WorkingDir}");
-            Log($"  {nameof(env.EnlistmentDir)}: {env.EnlistmentDir}");
-            Log($"  {nameof(env.ContentDir)}: {env.ContentDir}");
-            Log($"  {nameof(env.PointerDir)}: {env.PointerDir}");
-            Log($"  {nameof(env.DiskCacheDir)}: {env.DiskCacheDir}");
-            Log($"  {nameof(env.BusCacheDir)}: {env.BusCacheDir}");
-            Log($"  {nameof(env.LanCacheDir)}: {env.LanCacheDir}");
-            Log();
-        }
-        public void Get() {
-            //get --exe https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/PortableGit-2.10.1-32-bit.7z.exe "-y -gm2 -InstallPath=\"{0}\""
+            // parse
+            var minArgs = 1;
+            if (isPull)
+                minArgs++;
 
             var args = Parse(
-                minArgs: 1,
-                maxArgs: 2,
+                minArgs: minArgs,
+                maxArgs: minArgs + 1,
                 switchInfo: GitCmdSwitchInfo.Create(
                     LfxCmdSwitches.Quite, LfxCmdSwitches.Q,
                     LfxCmdSwitches.Exe,
@@ -203,40 +179,139 @@ namespace Lfx {
                )
             );
 
-            // get args
+            // get flags
             var isQuiet = args.IsSet(LfxCmdSwitches.Quite | LfxCmdSwitches.Q);
             var isExe = args.IsSet(LfxCmdSwitches.Exe);
             var isZip = args.IsSet(LfxCmdSwitches.Zip);
-            var url = new Uri(args[0]);
+            var type = isExe ? LfxIdType.Exe : isZip ? LfxIdType.Zip : LfxIdType.File;
 
-            // init env
-            var env = new LfxEnv();
-            var cache = env.Cache;
+            // get args
+            var argsIndex = 0;
+            var contentPath = string.Empty;
+            if (isPull) {
+                contentPath = Path.GetFullPath(args[argsIndex++]);
+                if (!contentPath.IsSubDirOf(m_env.ContentDir))
+                    throw new ArgumentException(
+                        $"Expected path '{contentPath}' to be in/a sub directory of '{m_env.ContentDir}'.");
+            }
+            var url = new Uri(args[argsIndex++]);
+            var exeArgs = isExe ? args[argsIndex++] : null;
 
             // log progress
-            cache.OnProgress += LogProgress();
+            if (!isQuiet)
+                LogProgress();
 
-            // fetch pointer
-            LfxPointer pointer;
-            if (isZip)
-                pointer = cache.FetchZip(url);
-            else if (isExe)
-                pointer = cache.FetchExe(url, args[1]);
-            else
-                pointer = cache.FetchFile(url);
+            // fetch!
+            var pointer = m_env.Fetch(type, url, exeArgs);
 
             // dump pointer
-            Log($"{pointer.Value}");
+            if (!isPull) {
+                Log($"{pointer.Value}");
+                return;
+            }
+
+            // save poitner
+            var recursiveDir = m_env.ContentDir.GetRecursiveDir(contentPath);
+            var pointerPath = Path.Combine(m_env.PointerDir, recursiveDir, contentPath.GetFileName());
+            Directory.CreateDirectory(pointerPath.GetDir());
+            File.WriteAllText(pointerPath, pointer.Value);
+
+            // alias content
+            var cachePath = m_env.Checkout(pointer);
+            cachePath.AliasPath(contentPath);
         }
-        public void Sync() {
-            //var args = Parse(
-            //    minArgs: 0,
-            //    maxArgs: 1,
-            //    switchInfo: GitCmdSwitchInfo.Create(
-            //        LfxCmdSwitches.Quite,
-            //        LfxCmdSwitches.Q
-            //   )
-            //);
+
+        public void Help() {
+            Log("git-lfx/0.2.0 (GitHub; corclr)");
+            Log("git lfx <command> [<args>]");
+            Log();
+            Log("Env                                Dump environment.");
+            Log();
+            Log("Checkout                           Sync content in lfx directory using pointers in .lfx directory.");
+            Log("    -q, --quite                        Suppress progress reporting.");
+            Log();
+            Log("Pull <path> <url> [<exeCmd>]       Pull content to path in 'lfx' and add corrisponding pointer to '.lfx'.");
+            Log("    -q, --quite                        Suppress progress reporting.");
+            Log("    --zip                              Url points to zip archive.");
+            Log("    --exe                              Url points to self expanding archive. Use '{0}' in <exeCmd> for target directory.");
+            Log();
+            Log("Fetch <url> [<cmd>] [<exeCmd>]     Fetch content and echo poitner.");
+            Log("    -q, --quite                        Suppress progress reporting.");
+            Log("    --zip                              Url points to zip archive.");
+            Log("    --exe                              Url points to self expanding archive. Use '{0}' in <cmd> for target directory.");
+            Log();
+            Log("Cache                              Dump cache stats.");
+            Log("    --clean                            Delete orphaned temp directories.");
+            Log("    --clear                            Delete all caches on this machine.");
+            Log("    -f, --force                        Must be specified with clear.");
+        }
+
+        public void Env() {
+            Log($"Environment Variables:");
+            Log($"  {LfxEnv.EnvironmentVariable.DiskCacheName}={LfxEnv.EnvironmentVariable.DiskCache}");
+            Log($"  {LfxEnv.EnvironmentVariable.BusCacheName}={LfxEnv.EnvironmentVariable.BusCache}");
+            Log($"  {LfxEnv.EnvironmentVariable.LanCacheName}={LfxEnv.EnvironmentVariable.LanCache}");
+            Log();
+
+            Log($"Directories:");
+            Log($"  {nameof(m_env.WorkingDir)}: {m_env.WorkingDir}");
+            Log($"  {nameof(m_env.EnlistmentDir)}: {m_env.EnlistmentDir}");
+            Log($"  {nameof(m_env.ContentDir)}: {m_env.ContentDir}");
+            Log($"  {nameof(m_env.PointerDir)}: {m_env.PointerDir}");
+            Log($"  {nameof(m_env.DiskCacheDir)}: {m_env.DiskCacheDir}");
+            Log($"  {nameof(m_env.BusCacheDir)}: {m_env.BusCacheDir}");
+            Log($"  {nameof(m_env.LanCacheDir)}: {m_env.LanCacheDir}");
+            Log();
+        }
+        public void Pull() {
+            //pull --exe git https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/PortableGit-2.10.1-32-bit.7z.exe "-y -gm2 -InstallPath=\"{0}\""
+            FetchOrPull(isPull: true);
+        }
+        public void Fetch() {
+            //fetch --exe https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/PortableGit-2.10.1-32-bit.7z.exe "-y -gm2 -InstallPath=\"{0}\""
+            FetchOrPull(isPull: false);
+        }
+        public void Cache() {
+            var args = Parse(
+                minArgs: 0,
+                maxArgs: 0,
+                switchInfo: GitCmdSwitchInfo.Create(
+                    LfxCmdSwitches.Clean,
+                    LfxCmdSwitches.Clear,
+                    LfxCmdSwitches.F, LfxCmdSwitches.Force
+               )
+            );
+
+            var clean = args.IsSet(LfxCmdSwitches.Clean);
+            var clear = args.IsSet(LfxCmdSwitches.Clear);
+            var force = args.IsSet(LfxCmdSwitches.F, LfxCmdSwitches.Force);
+
+            if (clear && !force)
+                throw new Exception("To --clear you must also specify --force.");
+
+            // clear
+            if (clear) {
+                m_env.ClearCache();
+                return;
+            }
+
+            // clean
+            if (clean) {
+                m_env.CleanCache();
+                return;
+            }
+
+            // dump
+        }
+        public void Checkout() {
+            var args = Parse(
+                minArgs: 0,
+                maxArgs: 0,
+                switchInfo: GitCmdSwitchInfo.Create(
+                    LfxCmdSwitches.Quite,
+                    LfxCmdSwitches.Q
+               )
+            );
 
             //var lfxFiles = GetFiles(args, pointer: true);
 

@@ -99,7 +99,7 @@ namespace Util {
                 if (!cachePath.PathExists()) {
 
                     if (hardLink)
-                        pathOnPartition.HardLinkTo(cachePath);
+                        pathOnPartition.AliasPath(cachePath);
 
                     else
                         pathOnPartition.MovePath(cachePath);
@@ -147,6 +147,8 @@ namespace Util {
             // store!
             return await MoveOrLinkIntoStore(await CopyToTemp(path), cachePath);
         }
+
+
         public async Task<string> Take(string path, string hash) {
 
             CheckPath(path);
@@ -189,6 +191,16 @@ namespace Util {
             );
 
             return cachePath.PathExists();
+        }
+
+        public void Clear() {
+            Clean();
+            Directory.Delete(m_dir);
+            Directory.CreateDirectory(m_dir);
+        }
+        public void Clean() {
+            foreach (var directory in m_tempDir.Path.GetDirectories())
+                Directory.Delete(directory);
         }
 
         public void Dispose() {

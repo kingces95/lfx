@@ -42,6 +42,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="HardLinkEnumerator.cs" />
+    <Compile Include="JunctionPoints.cs" />
     <Compile Include="AsyncSemaphore.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="Hash.cs" />

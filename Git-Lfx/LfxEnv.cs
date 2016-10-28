@@ -65,9 +65,10 @@ namespace Lfx {
                 m_busCacheDir = m_lanCacheDir;
 
             m_cache = LfxCache.CreateCache(m_diskCacheDir, m_busCacheDir, m_lanCacheDir);
+            m_cache.OnProgress += OnProgress;
         }
 
-        public LfxCache Cache => m_cache;
+        public Action<LfxProgressType, long> OnProgress;
 
         public string WorkingDir => m_workingDir;
         public string EnlistmentDir => m_enlistmentDir;
@@ -76,5 +77,25 @@ namespace Lfx {
         public string DiskCacheDir => m_diskCacheDir;
         public string BusCacheDir => m_busCacheDir;
         public string LanCacheDir => m_lanCacheDir;
+
+        public void ClearCache() => m_cache.Clear();
+        public void CleanCache() => m_cache.Clean();
+        public string Checkout(LfxPointer pointer) {
+            return m_cache.GetOrLoadValueAsync(pointer).Await();
+        }
+        public LfxPointer Fetch(LfxIdType type, Uri url, string args = null) {
+
+            switch (type) {
+                case LfxIdType.Exe:
+                    return m_cache.FetchExe(url, args);
+
+                case LfxIdType.Zip:
+                    return m_cache.FetchZip(url);
+
+                case LfxIdType.File:
+                default:
+                    return m_cache.FetchFile(url);
+            }
+        }
     }
 }
