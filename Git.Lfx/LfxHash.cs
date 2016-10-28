@@ -13,7 +13,7 @@ namespace Git.Lfx {
         public static bool operator !=(LfxHash lhs, LfxHash rhs) => !lhs.Equals(rhs);
         public static implicit operator string(LfxHash hash) => hash.ToString();
 
-        public static LfxHash Compute(string value, Encoding encoding) {
+        public static LfxHash Create(string value, Encoding encoding) {
             var ms = new MemoryStream();
             {
                 var sw = new StreamWriter(ms, Encoding.UTF8);
@@ -23,24 +23,26 @@ namespace Git.Lfx {
             ms.Capacity = (int)ms.Position;
             ms.Position = 0;
 
-            return Compute(ms);
+            return Create(ms);
         }
-        public static LfxHash Compute(string path) {
+        public static LfxHash Create(string path) {
             using (var file = File.OpenRead(path))
-                return Compute(file);
+                return Create(file);
         }
-        public static LfxHash Compute(byte[] bytes, int? count = null) {
-            if (count == null)
-                count = bytes.Length;
-            return Compute(new MemoryStream(bytes, 0, (int)count));
-        }
-        public static LfxHash Compute(Stream stream) {
+        public static LfxHash Create(Stream stream) {
             return Create(SHA256.Create().ComputeHash(stream));
         }
-
         public static LfxHash Create(byte[] value) => new LfxHash(Hash.Create(value));
+
         public static LfxHash Parse(string value) => new LfxHash(Hash.Parse(value, Length));
-        public static bool TryParse(string value, out LfxHash hash) => LfxHash.TryParse(value, out hash);
+        public static bool TryParse(string value, out LfxHash hash) {
+            Hash rawHash;
+            if (!Hash.TryParse(value, Length, out rawHash))
+                return false;
+
+            hash = new LfxHash(rawHash);
+            return true;
+        }
 
         private readonly Hash m_value;
 
@@ -49,7 +51,6 @@ namespace Git.Lfx {
         }
 
         public byte[] Value => m_value.Value;
-        public bool IsNull => m_value.IsNull;
 
         public override bool Equals(object obj) => obj is LfxHash ? ((LfxHash)obj).m_value == m_value : false;
         public bool Equals(LfxHash other) => m_value != null && m_value == other.m_value;

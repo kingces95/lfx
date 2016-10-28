@@ -65,7 +65,7 @@ namespace Util {
 
         public ImmutablePathDictionary(string dir) {
             m_dir = dir.ToDir();
-            m_tempDir = new TempDir(Path.Combine(TempDirName, Path.GetRandomFileName()));
+            m_tempDir = new TempDir(Path.Combine(dir, TempDirName, Path.GetRandomFileName()));
             m_lockPath = Path.Combine(m_dir, LockFileName);
         }
 
@@ -77,62 +77,32 @@ namespace Util {
             if (path == null)
                 throw new ArgumentNullException(nameof(path));
 
-            if (!path.FileOrDirectoryExists())
+            if (!path.PathExists())
                 throw new ArgumentException($"Path '{path}' does not exist as a file or directory.");
         }
         private async Task<string> CopyToTemp(string path) {
-            var tempPath = CreateTempPath();
-
-            // copy file
-            if (File.Exists(path))
-                await path.CopyToAsync(tempPath, onProgress: OnCopyProgress);
-
-            // copy directory
-            else
-                throw new NotImplementedException();
-
-            return tempPath;
+            return await path.CopyPathToAsync(CreateTempPath(), onProgress: OnCopyProgress);
         }
         private async Task<string> MatchPartition(string path) {
 
             // test if source and target on same partition
-            if (!path.PathRootEquals(m_dir))
+            if (path.PathRootEquals(m_dir))
                 return path;
 
             return await CopyToTemp(path);
-        }
-        private string GetCachePath(string hash, out bool exists) {
-
-            if (hash == null)
-                throw new ArgumentNullException(nameof(hash));
-
-            if (hash.Length < MinimumHashLength)
-                throw new ArgumentException(
-                    $"Hash '{hash}' must be at least '{MinimumHashLength}' characters long.");
-
-            var cachePath = Path.Combine(
-                m_dir,
-                hash.ToString().Substring(0, L1PartitionCount),
-                hash.ToString().Substring(L1PartitionCount, L2PartitionCount),
-                hash
-            );
-
-            exists = cachePath.FileOrDirectoryExists();
-
-            return cachePath;
         }
         private async Task<string> MoveOrLinkIntoStore(string pathOnPartition, string cachePath, bool hardLink = false) {
 
             using (var fileLock = await FileLock.Create(m_lockPath)) {
 
                 // winner?
-                if (!cachePath.FileOrDirectoryExists()) {
+                if (!cachePath.PathExists()) {
 
                     if (hardLink)
                         pathOnPartition.HardLinkTo(cachePath);
 
                     else
-                        pathOnPartition.MoveFileOrDirectory(cachePath);
+                        pathOnPartition.MovePath(cachePath);
                 }
             }
 
@@ -141,17 +111,16 @@ namespace Util {
 
         public event Action<long> OnCopyProgress;
 
+        public string Dir => m_dir;
         public string TempDir => m_tempDir.ToString();
 
         public async Task<string> PutText(string text, string hash) {
 
-            bool exists;
-            var cachePath = GetCachePath(hash, out exists);
-
             // check if already created
-            if (exists)
+            string cachePath;
+            if (TryGetValue(hash, out cachePath))
                 return cachePath;
-            
+
             if (text == null)
                 text = string.Empty;
 
@@ -166,11 +135,9 @@ namespace Util {
 
             CheckPath(path);
 
-            bool exists;
-            var cachePath = GetCachePath(hash, out exists);
-
             // check if already created
-            if (exists)
+            string cachePath;
+            if (TryGetValue(hash, out cachePath))
                 return cachePath;
 
             // hardLink?
@@ -184,18 +151,16 @@ namespace Util {
 
             CheckPath(path);
 
-            bool exists;
-            var cachePath = GetCachePath(hash, out exists);
-
             // check if already created
-            if (exists)
+            string cachePath;
+            if (TryGetValue(hash, out cachePath))
                 return cachePath;
 
             // store!
             await MoveOrLinkIntoStore(await MatchPartition(path), cachePath);
 
             // delete original
-            path.DeleteFileOrDirectory();
+            path.DeletePath();
 
             return cachePath;
         }
@@ -203,15 +168,27 @@ namespace Util {
             if (hash == null)
                 throw new ArgumentNullException(nameof(hash));
 
-            bool exists;
-            GetCachePath(hash, out exists);
-
-            return exists;
+            // check if already created
+            string cachePath;
+            return TryGetValue(hash, out cachePath);
         }
-        public bool TryGetValue(string hash, out string path) {
-            bool exists;
-            path = GetCachePath(hash, out exists);
-            return exists;
+        public bool TryGetValue(string hash, out string cachePath) {
+
+            if (hash == null)
+                throw new ArgumentNullException(nameof(hash));
+
+            if (hash.Length < MinimumHashLength)
+                throw new ArgumentException(
+                    $"Hash '{hash}' must be at least '{MinimumHashLength}' characters long.");
+
+            cachePath = Path.Combine(
+                m_dir,
+                hash.ToString().Substring(0, L1PartitionCount),
+                hash.ToString().Substring(L1PartitionCount, L2PartitionCount),
+                hash
+            );
+
+            return cachePath.PathExists();
         }
 
         public void Dispose() {

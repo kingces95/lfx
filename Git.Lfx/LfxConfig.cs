@@ -47,8 +47,8 @@ namespace Git.Lfx {
         public GitConfig GitConfig => m_gitConfig;
         public LfxConfigFile ConfigFile => m_configFile;
         public LfxConfig Parent => m_parent;
-        public LfxPointerType Type {
-            get { return m_gitConfig[LfxConfigFile.TypeId].ToEnum<LfxPointerType>(ignoreCase: true); }
+        public LfxIdType Type {
+            get { return m_gitConfig[LfxConfigFile.TypeId].ToEnum<LfxIdType>(ignoreCase: true); }
         }
         public string Url => m_gitConfig[LfxConfigFile.UrlId];
         public bool HasPattern => m_gitConfig.Contains(LfxConfigFile.PatternId);

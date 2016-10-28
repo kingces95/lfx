@@ -86,6 +86,23 @@ namespace Lfx {
         private void Log(string message = null) {
             Console.WriteLine(message);
         }
+        private Action<LfxProgressType, long> LogProgress() {
+            long copy = 0;
+            long download = 0;
+            long expand = 0;
+            return (type, progress) => {
+                lock (this) {
+                    switch (type) {
+                        case LfxProgressType.Copy: copy += progress; break;
+                        case LfxProgressType.Download: download += progress; break;
+                        case LfxProgressType.Expand: expand += progress; break;
+                    }
+
+                    Console.Write($"Download: {download.ToFileSize()}, Copy: {copy.ToFileSize()}, Expand: {expand.ToFileSize()}".PadRight(Console.WindowWidth - 1));
+                    Console.CursorLeft = 0;
+                }
+            };
+        }
         private void Lfx(string arguments) => Execute(Exe, arguments);
         private void Execute(string exe, string arguments, string workingDir = null) {
             Log($"> {exe} {arguments}");
@@ -144,16 +161,15 @@ namespace Lfx {
             Log("git-lfx/0.2.0 (GitHub; corclr)");
             Log("git lfx <command> [<args>]");
             Log();
-            Log("Env                    Dump environment.");
+            Log("Env                            Dump environment.");
             Log();
-            Log("Fetch <url> [<cmd>]    Download and cache the file referencd by the url and echo pointer.");
-            Log("    -q, --quite            Suppress progress reporting.");
-            Log("    --zip                  Url points to zip archive.");
-            Log("    --exe                  Url points to self expanding archive");
-            Log("                               <cmd> must be specified with '{0}' in place of extraction directory.");
+            Log("Get <url> [<cmd>] [<file>]     Download content into lfx directory (or echo pointer).");
+            Log("    -q, --quite                    Suppress progress reporting.");
+            Log("    --zip                          Url points to zip archive.");
+            Log("    --exe                          Url points to self expanding archive. Use '{0}' in <cmd> for target directory.");
             Log();
-            Log("Reset                  Reset lfx directory content using pointers in .lfx directory.");
-            Log("    -q, --quite            Suppress progress reporting.");
+            Log("Sync                           Sync content in lfx directory with pointers in .lfx directory.");
+            Log("    -q, --quite                    Suppress progress reporting.");
         }
 
         public void Env() {
@@ -165,24 +181,17 @@ namespace Lfx {
             Log();
 
             Log($"Directories:");
-            Log($"  {nameof(env.GitDir)}: {env.GitDir}");
-            Log($"  {nameof(env.LfxDir)}: {env.LfxDir}");
-            Log($"  {nameof(env.LfxPointerDir)}: {env.LfxPointerDir}");
+            Log($"  {nameof(env.WorkingDir)}: {env.WorkingDir}");
+            Log($"  {nameof(env.EnlistmentDir)}: {env.EnlistmentDir}");
+            Log($"  {nameof(env.ContentDir)}: {env.ContentDir}");
+            Log($"  {nameof(env.PointerDir)}: {env.PointerDir}");
+            Log($"  {nameof(env.DiskCacheDir)}: {env.DiskCacheDir}");
+            Log($"  {nameof(env.BusCacheDir)}: {env.BusCacheDir}");
+            Log($"  {nameof(env.LanCacheDir)}: {env.LanCacheDir}");
             Log();
-
-            Log($"Cache:");
-            var cache = env.Cache;
-            while (cache != null) {
-                Log($"  {nameof(cache.CacheDir)}: {cache.CacheDir}");
-                Log($"    {nameof(cache.IsCompressed)}={cache.IsCompressed}");
-                Log($"    {nameof(cache.IsReadOnly)}={cache.IsReadOnly}");
-                Log();
-
-                cache = cache.Parent;
-            }
         }
-        public void Fetch() {
-            // fetch https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/PortableGit-2.10.1-32-bit.7z.exe -o"{0}" -y
+        public void Get() {
+            //get --exe https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/PortableGit-2.10.1-32-bit.7z.exe "-y -gm2 -InstallPath=\"{0}\""
 
             var args = Parse(
                 minArgs: 1,
@@ -194,43 +203,32 @@ namespace Lfx {
                )
             );
 
+            // get args
             var isQuiet = args.IsSet(LfxCmdSwitches.Quite | LfxCmdSwitches.Q);
             var isExe = args.IsSet(LfxCmdSwitches.Exe);
             var isZip = args.IsSet(LfxCmdSwitches.Zip);
             var url = new Uri(args[0]);
 
-            LfxPointer pointer;
-            if (isZip) // zip
-                pointer = LfxPointer.CreateZip(url);
-
-            else if (isExe) // exe
-                pointer = LfxPointer.CreateExe(url, args[1]);
-
-            else // file
-                pointer = LfxPointer.CreateFile(url);
-
+            // init env
             var env = new LfxEnv();
+            var cache = env.Cache;
 
-            long copy = 0;
-            long download = 0;
-            long expand = 0;
-            env.Cache.OnProgress += (type, progress) => {
-                lock (env) {
-                    switch (type) {
-                        case LfxProgressType.Copy: copy++; break;
-                        case LfxProgressType.Download: download++; break;
-                        case LfxProgressType.Expand: expand++; break;
-                    }
+            // log progress
+            cache.OnProgress += LogProgress();
 
-                    Console.Write($"Download: {download}, Copy: {copy}, Expand: {expand}");
-                    Console.CursorLeft = 0;
-                }
-            };
+            // fetch pointer
+            LfxPointer pointer;
+            if (isZip)
+                pointer = cache.FetchZip(url);
+            else if (isExe)
+                pointer = cache.FetchExe(url, args[1]);
+            else
+                pointer = cache.FetchFile(url);
 
-            pointer = env.Cache.CreatePointer(pointer).Await();
-            Log($"{pointer}");
+            // dump pointer
+            Log($"{pointer.Value}");
         }
-        public void Checkout() {
+        public void Sync() {
             //var args = Parse(
             //    minArgs: 0,
             //    maxArgs: 1,

@@ -30,7 +30,7 @@ namespace Git.Lfx {
 
         public string Url => m_file[UrlId];
         public string Pattern => m_file[PatternId];
-        public LfxPointerType Type => m_file[TypeId].ToEnum<LfxPointerType>(ignoreCase: true);
+        public LfxIdType Type => m_file[TypeId].ToEnum<LfxIdType>(ignoreCase: true);
         public string Hint => m_file[HintId];
         public string Args => m_file[ArgsId];
         public string CleanFilter => m_file[CleanFilterId];

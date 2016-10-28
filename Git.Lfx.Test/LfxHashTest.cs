@@ -21,8 +21,8 @@ namespace Git.Lfx.Test {
 
         [Test]
         public static void HashTest() {
-            var hash = LfxHash.Compute(Content, Encoding.UTF8);
-            var sameHash = LfxHash.Compute(Content, Encoding.UTF8);
+            var hash = LfxHash.Create(Content, Encoding.UTF8);
+            var sameHash = LfxHash.Create(Content, Encoding.UTF8);
             Assert.AreEqual(hash.ToString(), sameHash.ToString());
             Assert.AreEqual(HashValue, hash.ToString());
         }
@@ -46,7 +46,7 @@ namespace Git.Lfx.Test {
             using (var tempFile = new TempFile()) {
                 File.WriteAllText(tempFile, Content, Encoding.UTF8);
                 var hash = LfxHash.Compute(tempFile);
-                var sampleHash = LfxHash.Compute(Content, Encoding.UTF8);
+                var sampleHash = LfxHash.Create(Content, Encoding.UTF8);
                 Assert.AreEqual(sampleHash, hash);
                 Assert.IsTrue(sampleHash.Value.SequenceEqual(hash.Value));
             }

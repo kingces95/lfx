@@ -37,17 +37,19 @@ namespace Util {
         private readonly TempCurDir m_tempCurDir;
         private readonly string m_tempDir;
 
-        public TempDir()
+        public TempDir(bool makeCurrentDirectory = false)
             : this(IOPath.Combine(IOPath.GetTempPath(), IOPath.GetRandomFileName())) {
         }
-        public TempDir(string tempDir) {
+        public TempDir(string tempDir, bool makeCurrentDirectory = false) {
             Directory.CreateDirectory(tempDir);
             m_tempDir = tempDir.ToDir();
-            m_tempCurDir = new TempCurDir(tempDir);
+
+            if (makeCurrentDirectory)
+                m_tempCurDir = new TempCurDir(tempDir);
         }
 
         private void Dispose(bool disposing) {
-            m_tempCurDir.Dispose();
+            m_tempCurDir?.Dispose();
 
             if (disposing)
                 GC.SuppressFinalize(this);

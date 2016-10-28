@@ -23,8 +23,14 @@ namespace Git {
             string arguments, 
             Action<long> onProgress = null) {
 
-            var monitor = targetDir.MonitorGrowth(onGrowth: (path, delta) => onProgress?.Invoke(delta));
-            var cmdStream = await Cmd.ExecuteAsync(exeFilePath, string.Format(arguments, targetDir));
+            Directory.CreateDirectory(targetDir);
+            using (var monitor = targetDir.MonitorGrowth(onGrowth: (path, delta) => onProgress?.Invoke(delta))) {
+                var backSlash = '\\';
+                var escapedTargetDir = targetDir.Replace($"{backSlash}", $"{backSlash}{backSlash}");
+
+                var expandedArguments = string.Format(arguments, escapedTargetDir);
+                var cmdStream = await Cmd.ExecuteAsync(exeFilePath, expandedArguments);
+            }
         }
     }
 }

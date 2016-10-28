@@ -102,10 +102,9 @@ namespace Git.Lfx {
             return sb.ToString();
         }
 
-        public static LfxHash ComputeHash(this string value) => LfxHash.Compute(value);
-        public static LfxHash ComputeHash(this Stream stream) => LfxHash.Compute(stream);
-        public static LfxHash ComputeHash(this byte[] bytes) => LfxHash.Compute(bytes);
-        public static LfxHash ComputeHash(this byte[] bytes, int count) => LfxHash.Compute(bytes, count);
+        public static LfxHash GetHash(this string value, Encoding encoding) => LfxHash.Create(value, encoding);
+        public static LfxHash GetHash(this Stream stream) => LfxHash.Create(stream);
+        public static LfxHash GetHash(this byte[] bytes) => LfxHash.Create(bytes);
 
         public static T ToEnum<T>(this string value, bool ignoreCase = false) {
             if (value == null)

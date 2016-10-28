@@ -8,7 +8,13 @@ namespace Lfx {
     public sealed class LfxEnv {
         public const string LfxPointerDirName = @".lfx";
         public const string LfxDirName = @"lfx";
+        public const string LfxCacheDirName = @"lfx";
         private const string GitDirName = ".git";
+
+        public static readonly string DefaultUserCacheDir = Path.Combine(
+            Environment.GetEnvironmentVariable("APPDATA"),
+            LfxCacheDirName
+        ).ToDir();
 
         public static class EnvironmentVariable {
             public const string DiskCacheName = "LFX_CACHE";
@@ -21,32 +27,54 @@ namespace Lfx {
         }
 
         private readonly string m_workingDir;
-        private readonly string m_gitDir;
-        private readonly string m_lfxDir;
-        private readonly string m_lfxPointerDir;
+        private readonly string m_enlistmentDir;
+        private readonly string m_contentDir;
+        private readonly string m_pointerDir;
+        private readonly string m_diskCacheDir;
+        private readonly string m_busCacheDir;
+        private readonly string m_lanCacheDir;
         private readonly LfxCache m_cache;
 
         public LfxEnv() {
             m_workingDir = Environment.CurrentDirectory.ToDir();
 
-            m_gitDir = m_workingDir.FindDirectoryAbove(GitDirName).GetParentDir();
-            if (m_gitDir != null) {
-                m_lfxDir = Path.Combine(m_gitDir, LfxDirName).ToDir();
-                m_lfxPointerDir = Path.Combine(m_gitDir, LfxPointerDirName).ToDir();
+            m_enlistmentDir = m_workingDir.FindDirectoryAbove(GitDirName).GetParentDir();
+            if (m_enlistmentDir != null) {
+                m_contentDir = Path.Combine(m_enlistmentDir, LfxDirName).ToDir();
+                m_pointerDir = Path.Combine(m_enlistmentDir, LfxPointerDirName).ToDir();
             }
 
-            m_cache = LfxCache.CreateCache(
-                diskCacheDir: EnvironmentVariable.DiskCache,
-                busCacheDir: EnvironmentVariable.BusCache,
-                lanCacheDir: EnvironmentVariable.LanCache,
-                workingDir: m_workingDir
-            );
+            m_diskCacheDir = EnvironmentVariable.DiskCache.ToDir();
+            m_busCacheDir = EnvironmentVariable.BusCache.ToDir();
+            m_lanCacheDir = EnvironmentVariable.LanCache.ToDir();
+
+            // default diskCacheDir
+            if (m_diskCacheDir == null) {
+
+                // if working dir partition equals %APPDATA% partition then put cache in %APPDATA%
+                if (m_workingDir.PathRootEquals(DefaultUserCacheDir))
+                    m_diskCacheDir = DefaultUserCacheDir;
+
+                // else put cache at root of working dir
+                else
+                    m_diskCacheDir = Path.Combine(Path.GetPathRoot(m_workingDir), LfxCacheDirName).ToDir();
+            }
+
+            // default busCacheDir
+            if (m_busCacheDir == null)
+                m_busCacheDir = m_lanCacheDir;
+
+            m_cache = LfxCache.CreateCache(m_diskCacheDir, m_busCacheDir, m_lanCacheDir);
         }
 
         public LfxCache Cache => m_cache;
+
         public string WorkingDir => m_workingDir;
-        public string GitDir => m_gitDir;
-        public string LfxDir => m_lfxDir;
-        public string LfxPointerDir => m_lfxPointerDir;
+        public string EnlistmentDir => m_enlistmentDir;
+        public string ContentDir => m_contentDir;
+        public string PointerDir => m_pointerDir;
+        public string DiskCacheDir => m_diskCacheDir;
+        public string BusCacheDir => m_busCacheDir;
+        public string LanCacheDir => m_lanCacheDir;
     }
 }

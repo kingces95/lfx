@@ -12,7 +12,7 @@ namespace Git.Lfx.Test {
         public static LfxPointer CreatePointer(
             string hashValue,
             int size,
-            LfxPointerType? type = null,
+            LfxIdType? type = null,
             Uri url = null,
             string hint = null) {
 
@@ -29,7 +29,7 @@ namespace Git.Lfx.Test {
             LfxHashMethod hashMethod,
             string hashValue,
             int size,
-            LfxPointerType? type = null,
+            LfxIdType? type = null,
             Uri url = null,
             string hint = null) {
 
@@ -81,16 +81,16 @@ namespace Git.Lfx.Test {
 
         public static readonly string CurlPointerText =
             CreatePointerText(Version, Method, HashValue, Size, 
-                LfxPointerType.File, Url);
+                LfxIdType.File, Url);
 
         public static readonly string ArchivePointerText =
             CreatePointerText(Version, Method, HashValue, Size,
-                LfxPointerType.Zip, Url, ArchiveHint);
+                LfxIdType.Zip, Url, ArchiveHint);
 
-        public static void TestSamplePointer(LfxPointer pointer, LfxPointerType type) {
+        public static void TestSamplePointer(LfxPointer pointer, LfxIdType type) {
 
-            var pointerText = type == LfxPointerType.Simple ? SimplePointerText :
-                type == LfxPointerType.File ? CurlPointerText :
+            var pointerText = type == LfxIdType.Simple ? SimplePointerText :
+                type == LfxIdType.File ? CurlPointerText :
                 ArchivePointerText;
 
             Assert.AreEqual(type, pointer.Type);
@@ -100,17 +100,17 @@ namespace Git.Lfx.Test {
             Assert.AreEqual(LfxHash.Parse(HashValue), pointer.Hash);
             Assert.AreEqual(Size, pointer.Size);
 
-            if (type == LfxPointerType.Simple) {
+            if (type == LfxIdType.Simple) {
                 Assert.AreEqual(null, pointer.Url);
                 Assert.AreEqual(null, pointer.ArchiveHint);
             }
 
-            if (type == LfxPointerType.File) {
+            if (type == LfxIdType.File) {
                 Assert.AreEqual(Url, pointer.Url);
                 Assert.AreEqual(null, pointer.ArchiveHint);
             }
 
-            if (type == LfxPointerType.Zip) {
+            if (type == LfxIdType.Zip) {
                 Assert.AreEqual(Url, pointer.Url);
                 Assert.AreEqual(ArchiveHint, pointer.ArchiveHint);
             }
@@ -159,7 +159,7 @@ namespace Git.Lfx.Test {
             var pointerText = SimplePointerText;
             var pointer = LfxPointer.Parse(pointerText);
 
-            TestSamplePointer(pointer, LfxPointerType.Simple);
+            TestSamplePointer(pointer, LfxIdType.Simple);
 
             Console.Write(pointer);
         }
@@ -170,12 +170,12 @@ namespace Git.Lfx.Test {
             using (var contentFile = new TempFile()) {
                 File.WriteAllText(contentFile, LfxHashTest.Content, Encoding.UTF8);
                 var pointer = LfxPointer.Create(contentFile);
-                TestSamplePointer(pointer, LfxPointerType.Simple);
+                TestSamplePointer(pointer, LfxIdType.Simple);
 
                 using (var pointerFile = new TempFile()) {
                     File.WriteAllText(pointerFile, pointer.ToString());
                     pointer = LfxPointer.Load(pointerFile);
-                    TestSamplePointer(pointer, LfxPointerType.Simple);
+                    TestSamplePointer(pointer, LfxIdType.Simple);
                 }
             }
         }
@@ -191,10 +191,10 @@ namespace Git.Lfx.Test {
             var pointer = LfxPointer.Parse(pointerText);
 
             var curlPointerParsed = LfxPointer.Parse(CurlPointerText);
-            TestSamplePointer(curlPointerParsed, LfxPointerType.File);
+            TestSamplePointer(curlPointerParsed, LfxIdType.File);
 
             var curlPointer = pointer.AddUrl(Url);
-            TestSamplePointer(curlPointer, LfxPointerType.File);
+            TestSamplePointer(curlPointer, LfxIdType.File);
 
             Assert.AreEqual(curlPointerParsed, curlPointer);
 
@@ -212,10 +212,10 @@ namespace Git.Lfx.Test {
             var pointer = LfxPointer.Parse(pointerText);
 
             var archivePointerParsed = LfxPointer.Parse(ArchivePointerText);
-            TestSamplePointer(archivePointerParsed, LfxPointerType.Zip);
+            TestSamplePointer(archivePointerParsed, LfxIdType.Zip);
 
             var archivePointer = pointer.AddArchive(Url, ArchiveHint);
-            TestSamplePointer(archivePointer, LfxPointerType.Zip);
+            TestSamplePointer(archivePointer, LfxIdType.Zip);
 
             Assert.AreEqual(archivePointerParsed, archivePointer);
 

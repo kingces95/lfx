@@ -5,33 +5,17 @@ using System.Threading.Tasks;
 
 namespace Util {
 
-    public sealed class ImmutableAsyncDictionary<TKey, TPointer, T> {
+    public abstract class ImmutableAsyncDictionary<TKey, TPointer, T> {
 
         private readonly ConcurrentDictionary<TKey, Task<T>> m_values;
-        private readonly Func<TPointer, TKey> m_getKey;
-        private readonly Func<TKey, Tuple<bool, T>> m_tryLoadValue;
-        private readonly Func<TPointer, Task<T>> m_loadValueAsync;
 
-        public ImmutableAsyncDictionary(
-            Func<TPointer, TKey> getKey,
-            Func<TKey, Tuple<bool, T>> tryLoadValue,
-            Func<TPointer, Task<T>> loadValueAsync) {
-
+        public ImmutableAsyncDictionary() {
             m_values = new ConcurrentDictionary<TKey, Task<T>>();
-            m_getKey = getKey;
-            m_tryLoadValue = tryLoadValue;
-            m_loadValueAsync = loadValueAsync;
         }
 
-        private bool TryLoadValue(TKey key, out T value) {
-            value = default(T);
-            var result = m_tryLoadValue(key);
-            if (!result.Item1)
-                return false;
-
-            value = result.Item2;
-            return true;
-        }
+        protected abstract TKey GetKey(TPointer pointer);
+        protected abstract bool TryLoadValue(TKey key, out T value);
+        protected abstract Task<T> LoadValueAsync(TPointer pointer);
 
         public event Action<TPointer> OnAsyncLoad;
         public event Action<TKey> OnKeyMissing;
@@ -54,7 +38,7 @@ namespace Util {
         }
         public async Task<T> GetOrLoadValueAsync(TPointer pointer) {
 
-            TKey key = m_getKey(pointer);
+            TKey key = GetKey(pointer);
             ManualResetEvent mre = null;
             Task<T> freshTask = null;
             Exception ex = null;
@@ -85,7 +69,7 @@ namespace Util {
             try {
                 // async load!
                 OnAsyncLoad?.Invoke(pointer);
-                var loadResult = await m_loadValueAsync(pointer);
+                var loadResult = await LoadValueAsync(pointer);
 
                 // cache result, free WaitHandle
                 m_values[key] = Task.FromResult(loadResult);
