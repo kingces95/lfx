@@ -3,8 +3,6 @@ using Util;
 using System.Threading.Tasks;
 using System.Text;
 using System;
-using System.Security.Cryptography;
-using System.Net;
 using System.Collections.Generic;
 using System.Collections;
 
@@ -24,6 +22,7 @@ namespace Git.Lfx {
 
         public const string PointerDirName = "pointers";
         public const string UrlToHashDirName = "urlToHash";
+        public const string HashToPointerDirName = "hashToPointer";
         public const string CompressedDirName = "compressed";
         public const string ExpandedDirName = "expanded";
 
@@ -50,19 +49,22 @@ namespace Git.Lfx {
 
                 lanCache = new LfxReadOnlyCache(
                     Path.Combine(lanCacheDir, CompressedDirName),
-                    Path.Combine(lanCacheDir, UrlToHashDirName)
+                    Path.Combine(lanCacheDir, UrlToHashDirName),
+                    Path.Combine(lanCacheDir, HashToPointerDirName)
                 );
 
             // download (aka "bus") cache
             var busCache = new LfxDownloadCache(
                 Path.Combine(busCacheDir, CompressedDirName),
                 Path.Combine(busCacheDir, UrlToHashDirName),
+                Path.Combine(busCacheDir, HashToPointerDirName),
                 lanCache
             );
 
             // expanded (aka "disk") cache
             var cache = new LfxExpandedCache(
                 Path.Combine(diskCacheDir, ExpandedDirName),
+                Path.Combine(diskCacheDir, HashToPointerDirName),
                 busCache
             );
 
@@ -72,18 +74,21 @@ namespace Git.Lfx {
         private readonly LfxCache m_parent;
         private readonly ImmutablePathDictionary m_hashToContent;
         private readonly ImmutablePathDictionary m_urlToHash;
+        private readonly ImmutablePathDictionary m_hashToPointer;
 
         protected LfxCache(
             string dir,
             string urlToHashDir,
+            string hashToPointer,
             LfxCache parent) {
 
             m_parent = parent;
 
+            // stores
+            m_hashToContent = new ImmutablePathDictionary(dir);
             if (urlToHashDir != null)
                 m_urlToHash = new ImmutablePathDictionary(urlToHashDir);
-
-            m_hashToContent = new ImmutablePathDictionary(dir);
+            m_hashToPointer = new ImmutablePathDictionary(hashToPointer);
 
             // report copy progress
             m_hashToContent.OnCopyProgress += 
@@ -94,15 +99,29 @@ namespace Git.Lfx {
                 parent.OnProgress += (type, progress) => ReportProgress(type, progress);
         }
 
+        private LfxPointer CreatePointer(LfxId id) {
+
+            // get compressed path
+            var compressedPath = m_parent.GetOrLoadValueAsync(id).Await();
+
+            // populate expanded cache
+            var cachePath = GetOrLoadValueAsync(id).Await();
+
+            // create poitner
+            var pointer = LfxPointer.Create(id, cachePath, compressedPath);
+
+            return pointer;
+        }
+
+        // stores
         protected ImmutablePathDictionary HashToContent => m_hashToContent;
         protected ImmutablePathDictionary UrlToHash => m_urlToHash;
+        protected ImmutablePathDictionary HashToPointer => m_hashToPointer;
 
-        protected LfxCache Parent => m_parent;
+        // helpers
         protected LfxHash GetUrlHash(Uri url) => url.ToString().ToLower().GetHash(Encoding.UTF8);
-        protected void ReportProgress(LfxProgressType type, long progress) {
-            OnProgress?.Invoke(type, progress);
-        }
         protected string GetTempPath() => Path.Combine(m_hashToContent.TempDir, Path.GetRandomFileName());
+        protected void ReportProgress(LfxProgressType type, long progress) => OnProgress?.Invoke(type, progress);
         protected bool TryGetHash(Uri url, out LfxHash hash) {
             var urlHash = GetUrlHash(url);
 
@@ -114,90 +133,89 @@ namespace Git.Lfx {
             hash = LfxHash.Parse(File.ReadAllText(hashPath));
             return true;
         }
-        protected virtual LfxPointer FetchUrl(Uri url, Func<LfxHash, LfxId> getId) {
-            throw new NotSupportedException();
-        }
 
+        // virtuals
+        protected virtual LfxPointer FetchUrl(Uri url, Func<LfxHash, LfxPointer> getPointer) {
+
+            // no override so no choice but to ask parent
+            if (m_parent == null)
+                throw new InvalidOperationException(
+                    $"LfxCache '{this}' failed to resolve url '{url}'.");
+
+            // try parent
+            var pointer = m_parent.FetchUrl(url, getPointer);
+
+            // cache pointer
+            m_hashToPointer.PutText(pointer.Value, pointer.Hash).Await();
+
+            return pointer;
+        }
+        protected virtual bool IsReadOnly => false;
+
+        // overrides
         protected sealed override LfxHash GetKey(LfxId id) => id.Hash;
-        protected override bool TryLoadValue(LfxHash hash, out string path) {
+        protected sealed override bool TryLoadValue(LfxHash hash, out string path) {
             return m_hashToContent.TryGetValue(hash, out path);
         }
-        protected abstract override Task<string> LoadValueAsync(LfxId id);
+        protected override async Task<string> LoadValueAsync(LfxId id) {
+            return await m_parent?.GetOrLoadValueAsync(id);
+        }
 
+        // events
         public event Action<LfxProgressType, long> OnProgress;
 
-        public void Clean() {
-            m_hashToContent.Clean();
-            m_hashToContent?.Clean();
-        }
-        public void Clear() {
-            m_hashToContent.Clear();
-            m_hashToContent?.Clear();
-        }
-
+        // fetch
         public LfxPointer FetchFile(Uri url) {
-            return FetchUrl(url, hash => LfxId.CreateFile(url, hash));
+            return FetchUrl(url, hash => CreatePointer(LfxId.CreateFile(url, hash)));
         }
         public LfxPointer FetchZip(Uri url) {
-            return FetchUrl(url, hash => LfxId.CreateZip(url, hash));
+            return FetchUrl(url, hash => CreatePointer(LfxId.CreateZip(url, hash)));
         }
         public LfxPointer FetchExe(Uri url, string args) {
-            return FetchUrl(url, hash => LfxId.CreateExe(url, args, hash));
+            return FetchUrl(url, hash => CreatePointer(LfxId.CreateExe(url, args, hash)));
         }
 
+        // reflection
         public IEnumerator<KeyValuePair<LfxPointer, string>> GetEnumerator() {
             throw new NotImplementedException();
         }
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
+        // housekeeping
+        public void Clean() {
+            if (IsReadOnly)
+                return;
+
+            m_hashToContent.Clean();
+            m_urlToHash?.Clean();
+            m_hashToPointer.Clean();
+            m_parent?.Clean();
+        }
         public void Dispose() {
             m_hashToContent?.Dispose();
         }
+
+        // object
         public override string ToString() => m_hashToContent.ToString();
     }
     internal sealed class LfxExpandedCache : LfxCache {
 
         public LfxExpandedCache(
             string dir,
+            string hashToPointer,
             LfxCache parent) 
-            : base(dir, null, parent) {
+            : base(dir, null, hashToPointer, parent) {
 
             if (parent == null)
                 throw new ArgumentNullException(nameof(parent));
         }
 
-        private void ReportExpansionProgress(long progress) {
-            ReportProgress(LfxProgressType.Expand, progress);
-        }
+        private void ReportExpansionProgress(long progress) => ReportProgress(LfxProgressType.Expand, progress);
 
-        protected override LfxPointer FetchUrl(Uri url, Func<LfxHash, LfxId> getId) {
-
-            // get hash
-            LfxHash hash;
-            if (!TryGetHash(url, out hash)) {
-
-                // download url
-                var downloadPath = ((LfxDownloadCache)Parent).Download(url).Await();
-
-                // get hash
-                TryGetHash(url, out hash);
-            }
-
-            var id = getId(hash);
-            var compressedPath = Parent.GetOrLoadValueAsync(id).Await();
-
-            // populate cache
-            var cachePath = GetOrLoadValueAsync(id).Await();
-
-            // create poitner
-            var pointer = LfxPointer.Create(id, cachePath, compressedPath);
-
-            return pointer;
-        }
         protected override async Task<string> LoadValueAsync(LfxId id) {
 
             // try parent
-            var compressedPath = await Parent.GetOrLoadValueAsync(id);
+            var compressedPath = await base.LoadValueAsync(id);
             if (compressedPath == null)
                 throw new ArgumentException($"Url '{id.Url}' failed to resolve.");
 
@@ -225,24 +243,23 @@ namespace Git.Lfx {
         public LfxDownloadCache(
             string dir,
             string urlToHashDir,
+            string hashToPointer,
             LfxCache parent) 
-            : base(dir, urlToHashDir, parent) {
+            : base(dir, urlToHashDir, hashToPointer, parent) {
         }
 
-        private void ReportDownloadProgress(long progress) {
-            ReportProgress(LfxProgressType.Download, progress);
-        }
-
-        internal async Task<string> Download(Uri url, LfxHash? hash = null) {
+        private void ReportDownloadProgress(long progress) => ReportProgress(LfxProgressType.Download, progress);
+        private async Task<string> Download(Uri url, LfxHash? expectedHash = null) {
 
             var tempPath = GetTempPath();
 
             // download!
-            var downloadHash = (await url.DownloadAndHash(tempPath, onProgress: ReportDownloadProgress)).GetHash();
+            var byteHash = await url.DownloadAndHash(tempPath, onProgress: ReportDownloadProgress);
 
             // verify hash
-            if (hash != null && hash != downloadHash)
-                throw new Exception($"Downloaded url '{url}' hash '{downloadHash}' is different than expected hash '{hash}'.");
+            var downloadHash = LfxHash.Create(byteHash);
+            if (expectedHash != null && expectedHash != downloadHash)
+                throw new Exception($"Downloaded url '{url}' hash '{downloadHash}' is different than expected hash '{expectedHash}'.");
 
             // stash hash -> content
             var compressedPath = await HashToContent.Take(tempPath, downloadHash);
@@ -256,10 +273,31 @@ namespace Git.Lfx {
             return compressedPath;
         }
 
+        protected override LfxPointer FetchUrl(Uri url, Func<LfxHash, LfxPointer> getPointer) {
+
+            // try get hash
+            LfxHash hash;
+            if (!TryGetHash(url, out hash)) {
+
+                // download!
+                var downloadPath = Download(url).Await();
+
+                // get hash
+                TryGetHash(url, out hash);
+            }
+
+            // create poitner
+            var pointer = getPointer(hash);
+
+            // cache pointer
+            HashToPointer.PutText(pointer.Value, pointer.Hash).Await();
+
+            return pointer;
+        }
         protected override async Task<string> LoadValueAsync(LfxId id) {
 
             // try parent
-            var compressedPath = await Parent?.GetOrLoadValueAsync(id);
+            var compressedPath = await base.LoadValueAsync(id);
             if (compressedPath != null)
                 return await HashToContent.Put(compressedPath, id.Hash);
 
@@ -270,11 +308,13 @@ namespace Git.Lfx {
 
         public LfxReadOnlyCache(
             string dir,
-            string urlToHashDir) 
-            : base(dir, urlToHashDir, null) { }
+            string urlToHashDir,
+            string hashToPointer)
+            : base(dir, urlToHashDir, hashToPointer, null) { }
 
         protected override Task<string> LoadValueAsync(LfxId id) {
             return Task.FromResult(default(string));
         }
+        protected override bool IsReadOnly => true;
     }
 }

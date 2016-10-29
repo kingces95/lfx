@@ -11,6 +11,7 @@ using System.Runtime.InteropServices;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Net;
+using System.Reflection;
 
 namespace Util {
 
@@ -281,6 +282,13 @@ namespace Util {
         }
 
         // directory + file
+        public static void MakeDeletable(this string file) {
+            var info = new FileInfo(file);
+            var attributes = info.Attributes;
+            var flagsToClear = FileAttributes.ReadOnly | FileAttributes.System;
+            if ((attributes & flagsToClear) != 0)
+                info.Attributes &= ~flagsToClear;
+        }
         public static void MovePath(this string sourcePath, string targetPath) {
             if (sourcePath == null)
                 throw new ArgumentNullException(nameof(sourcePath));
@@ -299,16 +307,20 @@ namespace Util {
             else
                 throw new Exception($"Cannot move non-existant '{sourcePath}' to '{targetPath}'.");
         }
-        public static bool DeletePath(this string path) {
+        public static bool DeletePath(this string path, bool force = false) {
 
             // delete file
             if (File.Exists(path)) {
+                path.MakeDeletable();
                 File.Delete(path);
                 return true;
             }
 
             // delete directory
             if (Directory.Exists(path)) {
+                foreach (var file in path.GetAllFiles())
+                    file.DeletePath(force);
+
                 Directory.Delete(path, recursive: true);
                 return true;
             }
@@ -347,16 +359,15 @@ namespace Util {
         // aliases
         public static string AliasPath(this string path, string target) {
 
-            if (path.PathExistsAsFile()) {
+            if (path.PathExistsAsFile())
                 if (!Kernel32.CreateHardLink(target, path, IntPtr.Zero))
                     throw new ArgumentException($"Failed to create hard link '{path}' -> '{target}'.");
-            }
 
-            else if (path.PathExistsAsDirectory()) {
-                JunctionPoint.Create(path, target, overwrite: false);
-            }
+            else if (path.PathExistsAsDirectory())
+                JunctionPoint.Create(path, target);
 
-            else throw new IOException($"The path '{path}' does not exist.");
+            else
+                throw new IOException($"The path '{path}' does not exist.");
 
             return target;
         }
@@ -571,6 +582,13 @@ namespace Util {
 
                 yield return line;
             }
+        }
+
+        // reflection
+        public static bool IsOverriden(Type type, string name) {
+            var bf = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+            var method = type.GetMethod(name, bf);
+            return method != method.GetBaseDefinition();
         }
     }
 }

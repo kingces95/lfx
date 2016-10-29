@@ -38,7 +38,7 @@ namespace Lfx {
         public LfxEnv() {
             m_workingDir = Environment.CurrentDirectory.ToDir();
 
-            m_enlistmentDir = m_workingDir.FindDirectoryAbove(GitDirName).GetParentDir();
+            m_enlistmentDir = m_workingDir.FindDirectoryAbove(GitDirName)?.GetParentDir();
             if (m_enlistmentDir != null) {
                 m_contentDir = Path.Combine(m_enlistmentDir, LfxDirName).ToDir();
                 m_pointerDir = Path.Combine(m_enlistmentDir, LfxPointerDirName).ToDir();
@@ -65,7 +65,7 @@ namespace Lfx {
                 m_busCacheDir = m_lanCacheDir;
 
             m_cache = LfxCache.CreateCache(m_diskCacheDir, m_busCacheDir, m_lanCacheDir);
-            m_cache.OnProgress += OnProgress;
+            m_cache.OnProgress += (type, progress) => OnProgress(type, progress);
         }
 
         public Action<LfxProgressType, long> OnProgress;
@@ -78,7 +78,10 @@ namespace Lfx {
         public string BusCacheDir => m_busCacheDir;
         public string LanCacheDir => m_lanCacheDir;
 
-        public void ClearCache() => m_cache.Clear();
+        public void ClearCache() {
+            DiskCacheDir.DeletePath();
+            BusCacheDir.DeletePath();
+        }
         public void CleanCache() => m_cache.Clean();
         public string Checkout(LfxPointer pointer) {
             return m_cache.GetOrLoadValueAsync(pointer).Await();

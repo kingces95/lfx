@@ -189,7 +189,7 @@ namespace Util {
         /// <param name="overwrite">If true overwrites an existing reparse point or empty directory</param>
         /// <exception cref="IOException">Thrown when the junction point could not be created or when
         /// an existing directory was found and <paramref name="overwrite" /> if false</exception>
-        public static void Create(string sourceDir, string targetDir, bool overwrite) {
+        public static void Create(string sourceDir, string targetDir) {
             sourceDir = Path.GetFullPath(sourceDir);
 
             if (!Directory.Exists(sourceDir))

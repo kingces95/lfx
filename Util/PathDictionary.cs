@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Threading.Tasks;
 using System;
+using System.Linq;
 
 namespace Util {
 
@@ -60,12 +61,14 @@ namespace Util {
         private const int MinimumHashLength = L1PartitionCount + L2PartitionCount;
 
         private readonly string m_dir;
+        private readonly string m_globalTempDir;
         private readonly TempDir m_tempDir;
         private readonly string m_lockPath;
 
         public ImmutablePathDictionary(string dir) {
             m_dir = dir.ToDir();
-            m_tempDir = new TempDir(Path.Combine(dir, TempDirName, Path.GetRandomFileName()));
+            m_globalTempDir = Path.Combine(dir, TempDirName);
+            m_tempDir = new TempDir(Path.Combine(m_globalTempDir, Path.GetRandomFileName()));
             m_lockPath = Path.Combine(m_dir, LockFileName);
         }
 
@@ -194,13 +197,11 @@ namespace Util {
         }
 
         public void Clear() {
-            Clean();
-            Directory.Delete(m_dir);
-            Directory.CreateDirectory(m_dir);
+            m_dir.DeletePath();
         }
         public void Clean() {
-            foreach (var directory in m_tempDir.Path.GetDirectories())
-                Directory.Delete(directory);
+            foreach (var directory in m_globalTempDir.GetDirectories().Except(new[] { m_tempDir.Path }))
+                directory.DeletePath(force: true);
         }
 
         public void Dispose() {
