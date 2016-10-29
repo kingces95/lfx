@@ -2,6 +2,8 @@
 using System.Threading.Tasks;
 using System;
 using System.Linq;
+using System.Collections.Generic;
+using System.Collections;
 
 namespace Util {
 
@@ -52,7 +54,10 @@ namespace Util {
         }
     }
 
-    public sealed class ImmutablePathDictionary : IDisposable {
+    public sealed class ImmutablePathDictionary : 
+        IDisposable,
+        IEnumerable<string> {
+
         private const string LockFileName = ".lock";
         private const string TempDirName = ".temp";
 
@@ -151,7 +156,6 @@ namespace Util {
             return await MoveOrLinkIntoStore(await CopyToTemp(path), cachePath);
         }
 
-
         public async Task<string> Take(string path, string hash) {
 
             CheckPath(path);
@@ -207,6 +211,17 @@ namespace Util {
         public void Dispose() {
             m_tempDir.Dispose();
         }
+
+        public IEnumerator<string> GetEnumerator() {
+            var result =
+                from dirs in m_dir.GetDirectories().Except(new[] { m_globalTempDir })
+                from files in dirs.GetAllFiles()
+                orderby files
+                select files;
+
+            return result.GetEnumerator();
+        }
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         public override string ToString() => $"{m_dir}";
     }

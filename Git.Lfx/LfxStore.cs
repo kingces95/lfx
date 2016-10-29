@@ -17,7 +17,6 @@ namespace Git.Lfx {
 
     public abstract class LfxCache : 
         ImmutableAsyncDictionary<LfxHash, LfxId, string>,
-        IEnumerable<KeyValuePair<LfxPointer, string>>,
         IDisposable {
 
         public const string PointerDirName = "pointers";
@@ -174,12 +173,6 @@ namespace Git.Lfx {
         public LfxPointer FetchExe(Uri url, string args) {
             return FetchUrl(url, hash => CreatePointer(LfxId.CreateExe(url, args, hash)));
         }
-
-        // reflection
-        public IEnumerator<KeyValuePair<LfxPointer, string>> GetEnumerator() {
-            throw new NotImplementedException();
-        }
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         // housekeeping
         public void Clean() {
