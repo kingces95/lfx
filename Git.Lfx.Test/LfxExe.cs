@@ -64,7 +64,7 @@ namespace Git.Lfx.Live.Test {
                                 $"*.lfxconfig filter= diff= merge= text eol=lf"
                             });
 
-                            Git($"config -f .lfxconfig --add {LfxConfigFile.TypeId} {LfxIdType.Exe}");
+                            Git($"config -f .lfxconfig --add {LfxConfigFile.TypeId} {LfxPointerType.Exe}");
                             Git($"config -f .lfxconfig --add {LfxConfigFile.UrlId} {PortableGit}");
                             Git($"config -f .lfxconfig --add {LfxConfigFile.ArgsId} \"{Args}\"");
 

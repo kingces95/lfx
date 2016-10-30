@@ -32,10 +32,10 @@ namespace Git.Lfx.Test {
                 File.WriteAllText(nunitDllPath, LfxPointerTest.Content);
 
                 // load file
-                var pointer = LfxPointer.Create(nunitDllPath);
+                var pointer = LfxInfo.Create(nunitDllPath);
 
                 // check regex expansions
-                Assert.AreEqual(LfxIdType.Zip, pointer.Type);
+                Assert.AreEqual(LfxPointerType.Zip, pointer.Type);
                 Assert.AreEqual(
                     "http://nuget.org/api/v2/package/NUnit/2.6.4", 
                     pointer.Url.ToString()
@@ -61,10 +61,10 @@ namespace Git.Lfx.Test {
                 File.WriteAllText(lfxFilePath, LfxPointerTest.Content);
 
                 // load file
-                var pointer = LfxPointer.Create(lfxFilePath);
+                var pointer = LfxInfo.Create(lfxFilePath);
 
                 // check regex expansions
-                Assert.AreEqual(LfxIdType.File, pointer.Type);
+                Assert.AreEqual(LfxPointerType.File, pointer.Type);
                 Assert.AreEqual(
                     "https://dist.nuget.org/win-x86-commandline/v3.4.4/nuget.exe",
                     pointer.Url.ToString()

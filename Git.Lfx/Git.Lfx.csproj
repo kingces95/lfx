@@ -48,21 +48,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="LfxStore.cs" />
-    <Compile Include="LfxConfigFile.cs" />
-    <Compile Include="LfxConfig.cs" />
-    <Compile Include="LfxCmd.cs" />
-    <Compile Include="LfxHash.cs" />
-    <Compile Include="LfxPointer.cs" />
+    <Compile Include="LfxLoader.cs" />
+    <Compile Include="LfxData.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="..\AssemblyVersion.cs">
       <Link>Properties\AssemblyVersion.cs</Link>
     </Compile>
-    <Compile Include="Util\Extensions.cs" />
-    <Compile Include="Util\StreamCounter.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Cmd\Cmd.csproj">

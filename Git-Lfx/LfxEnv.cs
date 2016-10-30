@@ -2,11 +2,12 @@
 using Git.Lfx;
 using Util;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace Lfx {
 
     public sealed class LfxEnv {
-        public const string LfxPointerDirName = @".lfx";
+        public const string LfxInfoDirName = @".lfx";
         public const string LfxDirName = @"lfx";
         public const string LfxCacheDirName = @"lfx";
         private const string GitDirName = ".git";
@@ -17,9 +18,9 @@ namespace Lfx {
         ).ToDir();
 
         public static class EnvironmentVariable {
-            public const string DiskCacheName = "LFX_CACHE";
-            public const string BusCacheName = "LFX_BUS_CACHE";
-            public const string LanCacheName = "LFX_LAN_CACHE";
+            public const string DiskCacheName = "LFX_DISK_CACHE_DIR";
+            public const string BusCacheName = "LFX_BUS_CACHE_DIR";
+            public const string LanCacheName = "LFX_LAN_CACHE_DIR";
 
             public static readonly string DiskCache = Environment.GetEnvironmentVariable(DiskCacheName);
             public static readonly string BusCache = Environment.GetEnvironmentVariable(BusCacheName);
@@ -29,11 +30,11 @@ namespace Lfx {
         private readonly string m_workingDir;
         private readonly string m_enlistmentDir;
         private readonly string m_contentDir;
-        private readonly string m_pointerDir;
+        private readonly string m_infoDir;
         private readonly string m_diskCacheDir;
         private readonly string m_busCacheDir;
         private readonly string m_lanCacheDir;
-        private readonly LfxCache m_cache;
+        private readonly LfxLoader m_loader;
 
         public LfxEnv() {
             m_workingDir = Environment.CurrentDirectory.ToDir();
@@ -41,7 +42,7 @@ namespace Lfx {
             m_enlistmentDir = m_workingDir.FindDirectoryAbove(GitDirName)?.GetParentDir();
             if (m_enlistmentDir != null) {
                 m_contentDir = Path.Combine(m_enlistmentDir, LfxDirName).ToDir();
-                m_pointerDir = Path.Combine(m_enlistmentDir, LfxPointerDirName).ToDir();
+                m_infoDir = Path.Combine(m_enlistmentDir, LfxInfoDirName).ToDir();
             }
 
             m_diskCacheDir = EnvironmentVariable.DiskCache.ToDir();
@@ -62,43 +63,35 @@ namespace Lfx {
 
             // default busCacheDir
             if (m_busCacheDir == null)
-                m_busCacheDir = m_lanCacheDir;
+                m_busCacheDir = m_diskCacheDir;
 
-            m_cache = LfxCache.CreateCache(m_diskCacheDir, m_busCacheDir, m_lanCacheDir);
-            m_cache.OnProgress += (type, progress) => OnProgress(type, progress);
+            m_loader = new LfxLoader(m_diskCacheDir, m_busCacheDir, m_lanCacheDir);
+            m_loader.OnProgress += (type, progress) => OnProgress(type, progress);
         }
 
+        // compose loader
         public Action<LfxProgressType, long> OnProgress;
+        public Task<string> GetOrLoadContentAsync(LfxInfo info) {
+            return m_loader.GetOrLoadContentAsync(info);
+        }
+        public LfxEntry GetOrLoadEntry(LfxPointer pointer) {
+            return m_loader.GetOrLoadEntry(pointer);
+        }
 
+        // environmental paths
         public string WorkingDir => m_workingDir;
         public string EnlistmentDir => m_enlistmentDir;
         public string ContentDir => m_contentDir;
-        public string PointerDir => m_pointerDir;
+        public string InfoDir => m_infoDir;
         public string DiskCacheDir => m_diskCacheDir;
         public string BusCacheDir => m_busCacheDir;
         public string LanCacheDir => m_lanCacheDir;
 
+        // housecleaning
         public void ClearCache() {
             DiskCacheDir.DeletePath();
             BusCacheDir.DeletePath();
         }
-        public void CleanCache() => m_cache.Clean();
-        public string Checkout(LfxPointer pointer) {
-            return m_cache.GetOrLoadValueAsync(pointer).Await();
-        }
-        public LfxPointer Fetch(LfxIdType type, Uri url, string args = null) {
-
-            switch (type) {
-                case LfxIdType.Exe:
-                    return m_cache.FetchExe(url, args);
-
-                case LfxIdType.Zip:
-                    return m_cache.FetchZip(url);
-
-                case LfxIdType.File:
-                default:
-                    return m_cache.FetchFile(url);
-            }
-        }
+        public void CleanCache() => m_loader.Clean();
     }
 }

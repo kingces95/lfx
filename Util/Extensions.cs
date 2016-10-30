@@ -121,7 +121,7 @@ namespace Util {
             }
         }
 
-        public static async Task ExpandZip(
+        public static async Task<string> ExpandZip(
             this string zipFilePath, 
             string targetDir, 
             Action<long> onProgress = null) {
@@ -135,11 +135,11 @@ namespace Util {
                 Parallel.ForEach(zipFile.Entries, entry => {
 
                     // ignore directories
-                    if (Path.GetFileName(entry.FullName).Length == 0)
+                    if (IOPath.GetFileName(entry.FullName).Length == 0)
                         return;
 
                     // throw if unzipping target is outside of targetDir
-                    var targetPath = Path.Combine(targetDir, entry.FullName);
+                    var targetPath = IOPath.Combine(targetDir, entry.FullName);
                     if (!targetPath.StartsWith(targetDir))
                         throw new ArgumentException(
                             $"Zip package '{zipFilePath}' entry '{entry.FullName}' is outside package.");
@@ -154,6 +154,8 @@ namespace Util {
                     }
                 })
             );
+
+            return targetDir;
         }
 
         public static async Task<byte[]> DownloadAndHash(
@@ -252,6 +254,7 @@ namespace Util {
         public static bool PathExistsAsFile(this string path) => File.Exists(path);
         public static bool PathExistsAsDirectory(this string path) => Directory.Exists(path);
         public static bool PathExists(this string path) => path.PathExistsAsFile() || path.PathExistsAsDirectory();
+        public static bool PathIsRooted(this string path) => IOPath.IsPathRooted(path);
 
         // transforms
         public static string ToDir(this string dir) {
@@ -280,6 +283,9 @@ namespace Util {
         public static string GetFileName(this string path) {
             return IOPath.GetFileName(path);
         }
+        public static string PathCombine(this string path, params string[] subPath) {
+            return IOPath.Combine(new[] { path }.Concat(subPath).ToArray());
+        }
 
         // directory + file
         public static void MakeDeletable(this string file) {
@@ -289,7 +295,7 @@ namespace Util {
             if ((attributes & flagsToClear) != 0)
                 info.Attributes &= ~flagsToClear;
         }
-        public static void MovePath(this string sourcePath, string targetPath) {
+        public static string MovePath(this string sourcePath, string targetPath) {
             if (sourcePath == null)
                 throw new ArgumentNullException(nameof(sourcePath));
 
@@ -306,6 +312,8 @@ namespace Util {
 
             else
                 throw new Exception($"Cannot move non-existant '{sourcePath}' to '{targetPath}'.");
+
+            return targetPath;
         }
         public static bool DeletePath(this string path, bool force = false) {
 
@@ -488,26 +496,26 @@ namespace Util {
         public static Task WaitOneAsync(this WaitHandle waitHandle) {
             return waitHandle.WaitOneAsync(() => true);
         }
-        public static Task<T> WaitOneAsync<T>(this WaitHandle waitHandle, Func<T> result) {
-            if (waitHandle == null)
-                throw new ArgumentNullException(nameof(waitHandle));
+    public static async Task<T> WaitOneAsync<T>(this WaitHandle waitHandle, Func<T> result) {
+        if (waitHandle == null)
+            throw new ArgumentNullException(nameof(waitHandle));
 
-            var tcs = new TaskCompletionSource<T>();
+        var tcs = new TaskCompletionSource<T>();
 
-            RegisteredWaitHandle rwh = null;
-            rwh = ThreadPool.RegisterWaitForSingleObject(
-                waitObject: waitHandle,
-                callBack: (s, t) => {
-                    rwh.Unregister(null);
-                    tcs.TrySetResult(result());
-                },
-                state: null,
-                millisecondsTimeOutInterval: -1,
-                executeOnlyOnce: true
-            );
+        RegisteredWaitHandle rwh = null;
+        rwh = ThreadPool.RegisterWaitForSingleObject(
+            waitObject: waitHandle,
+            callBack: (s, t) => {
+                rwh.Unregister(null);
+                tcs.TrySetResult(result());
+            },
+            state: null,
+            millisecondsTimeOutInterval: -1,
+            executeOnlyOnce: true
+        );
 
-            return tcs.Task;
-        }
+        return await tcs.Task;
+    }
     }
 
     // misc

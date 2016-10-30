@@ -164,11 +164,10 @@ namespace Lfx {
         }
         private void FetchOrPull(bool isPull) {
 
-            // parse
-            var minArgs = 1;
-            if (isPull)
-                minArgs++;
+            var minArgs = isPull ? 2 : 1;
+            var urlArgIndex = isPull ? 1 : 0;
 
+            // parse
             var args = Parse(
                 minArgs: minArgs,
                 maxArgs: minArgs + 1,
@@ -183,42 +182,45 @@ namespace Lfx {
             var isQuiet = args.IsSet(LfxCmdSwitches.Quite | LfxCmdSwitches.Q);
             var isExe = args.IsSet(LfxCmdSwitches.Exe);
             var isZip = args.IsSet(LfxCmdSwitches.Zip);
-            var type = isExe ? LfxIdType.Exe : isZip ? LfxIdType.Zip : LfxIdType.File;
 
             // get args
-            var argsIndex = 0;
-            var contentPath = string.Empty;
-            if (isPull) {
-                contentPath = Path.GetFullPath(args[argsIndex++]);
-                if (!contentPath.IsSubDirOf(m_env.ContentDir))
-                    throw new ArgumentException(
-                        $"Expected path '{contentPath}' to be in/a sub directory of '{m_env.ContentDir}'.");
-            }
-            var url = new Uri(args[argsIndex++]);
-            var exeArgs = isExe ? args[argsIndex++] : null;
+            var url = new Uri(args[urlArgIndex]);
+            var exeArgs = isExe ? args[urlArgIndex + 1] : null;
+
+            // make pointer
+            var pointer =
+                isExe ? LfxPointer.CreateExe(url, exeArgs) :
+                isZip ? LfxPointer.CreateZip(url) :
+                LfxPointer.CreateFile(url);
 
             // log progress
             if (!isQuiet)
                 LogProgress();
 
-            // fetch!
-            var pointer = m_env.Fetch(type, url, exeArgs);
+            // load!
+            var info = m_env.GetOrLoadEntry(pointer);
 
-            // dump pointer
+            // fetch
             if (!isPull) {
-                Log($"{pointer.Value}");
+                Log($"{info}");
                 return;
             }
 
-            // save poitner
-            var recursiveDir = m_env.ContentDir.GetRecursiveDir(contentPath);
-            var pointerPath = Path.Combine(m_env.PointerDir, recursiveDir, contentPath.GetFileName());
-            Directory.CreateDirectory(pointerPath.GetDir());
-            File.WriteAllText(pointerPath, pointer.Value);
+            // ensure pulling only done in lfx subdirectory
+            var repoContentPath = Path.GetFullPath(args[0]);
+            if (!repoContentPath.IsSubDirOf(m_env.ContentDir))
+                throw new ArgumentException(
+                    $"Expected path '{repoContentPath}' to be in/a subdirectory of '{m_env.ContentDir}'.");
 
-            // alias content
-            var cachePath = m_env.Checkout(pointer);
-            cachePath.AliasPath(contentPath);
+            // alias cached content into lfx subdirectory (bam!)
+            var entry = m_env.GetOrLoadEntry(pointer);
+            entry.Path.AliasPath(repoContentPath);
+
+            // write info to .lfx subdirectory
+            var recursiveDir = m_env.ContentDir.GetRecursiveDir(repoContentPath);
+            var repoPointerPath = Path.Combine(m_env.InfoDir, recursiveDir, repoContentPath.GetFileName());
+            Directory.CreateDirectory(repoPointerPath.GetDir());
+            File.WriteAllText(repoPointerPath, entry.Info.ToString());
         }
 
         public void Help() {
@@ -257,18 +259,18 @@ namespace Lfx {
             Log($"  {nameof(m_env.WorkingDir)}: {m_env.WorkingDir}");
             Log($"  {nameof(m_env.EnlistmentDir)}: {m_env.EnlistmentDir}");
             Log($"  {nameof(m_env.ContentDir)}: {m_env.ContentDir}");
-            Log($"  {nameof(m_env.PointerDir)}: {m_env.PointerDir}");
+            Log($"  {nameof(m_env.InfoDir)}: {m_env.InfoDir}");
             Log($"  {nameof(m_env.DiskCacheDir)}: {m_env.DiskCacheDir}");
             Log($"  {nameof(m_env.BusCacheDir)}: {m_env.BusCacheDir}");
             Log($"  {nameof(m_env.LanCacheDir)}: {m_env.LanCacheDir}");
             Log();
         }
         public void Pull() {
-            //pull --exe git https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/PortableGit-2.10.1-32-bit.7z.exe "-y -gm2 -InstallPath=\"{0}\""
+            // pull --exe tools\git https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/PortableGit-2.10.1-32-bit.7z.exe "-y -gm2 -InstallPath=\"{0}\""
             FetchOrPull(isPull: true);
         }
         public void Fetch() {
-            //fetch --exe https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/PortableGit-2.10.1-32-bit.7z.exe "-y -gm2 -InstallPath=\"{0}\""
+            // fetch --exe https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/PortableGit-2.10.1-32-bit.7z.exe "-y -gm2 -InstallPath=\"{0}\""
             FetchOrPull(isPull: false);
         }
         public void Cache() {

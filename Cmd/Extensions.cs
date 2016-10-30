@@ -17,7 +17,7 @@ namespace Git {
             return Cmd.Open(exeName, commandLine, workingDir, stream);
         }
 
-        public static async Task ExpandExe(
+        public static async Task<string> ExpandExe(
             this string exeFilePath, 
             string targetDir,
             string arguments, 
@@ -31,6 +31,8 @@ namespace Git {
                 var expandedArguments = string.Format(arguments, escapedTargetDir);
                 var cmdStream = await Cmd.ExecuteAsync(exeFilePath, expandedArguments);
             }
+
+            return targetDir;
         }
     }
 }
