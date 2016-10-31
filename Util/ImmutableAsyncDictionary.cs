@@ -174,9 +174,10 @@ namespace Util {
 
             // copy source if on different partition or for copy operation
             if (!sourcePath.PathRootEquals(m_dir) || copy) {
+                var tempPath = GetTempPath();
                 stagingPath = await sourcePath.CopyPathToAsync(
-                    target: GetTempPath(), 
-                    onProgress: OnCopyProgress
+                    target: tempPath, 
+                    onProgress: progress => OnCopyProgress(tempPath, progress)
                 );
             }
 
@@ -193,7 +194,7 @@ namespace Util {
             return path;
         }
 
-        public event Action<long> OnCopyProgress;
+        public event Action<string, long> OnCopyProgress;
 
         public string Dir => m_dir;
         public string TempDir => m_tempDir.ToString();
@@ -269,7 +270,7 @@ namespace Util {
             m_dictionary.OnTryLoadAsync += TryLoadAsyncHandler;
 
             m_directory = new ImmutableDirectory(dir, keyToCachePath);
-            m_directory.OnCopyProgress += progress => OnCopyProgress?.Invoke(progress);
+            m_directory.OnCopyProgress += (path, progress) => OnCopyProgress?.Invoke(path, progress);
         }
 
         private async Task<string> RaiseTryAsyncLoadEvent(string hash, string tempPath) {
@@ -312,7 +313,7 @@ namespace Util {
         public string TempDir => m_directory.TempDir;
         public string GetTempPath() => m_directory.GetTempPath();
 
-        public event Action<long> OnCopyProgress;
+        public event Action<string, long> OnCopyProgress;
         public event LoadFileAsyncDelegate OnTryLoadAsync;
 
         public bool TryGetPath(string hash, out string path) {

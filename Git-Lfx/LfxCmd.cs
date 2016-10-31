@@ -35,13 +35,13 @@ namespace Lfx {
 
         public override string ToString() => Path;
     }
-    public sealed class LfxProgress {
-        private readonly ConcurrentDictionary<LfxProgressType, long> m_total;
-        private readonly ConcurrentDictionary<LfxProgressType, long> m_progress;
+    public sealed class LfxProgressTracker {
+        private readonly ConcurrentDictionary<LfxProgressType, long> m_totalBytes;
+        private readonly ConcurrentDictionary<LfxProgressType, long> m_progressBytes;
 
-        public LfxProgress() {
-            m_total = new ConcurrentDictionary<LfxProgressType, long>();
-            m_progress = new ConcurrentDictionary<LfxProgressType, long>();
+        public LfxProgressTracker() {
+            m_totalBytes = new ConcurrentDictionary<LfxProgressType, long>();
+            m_progressBytes = new ConcurrentDictionary<LfxProgressType, long>();
         }
 
         private void Log() {
@@ -51,20 +51,23 @@ namespace Lfx {
             }
         }
 
-        public void UpdateProgress(LfxProgressType type, long value) {
-            if (!m_progress.ContainsKey(type))
-                m_progress[type] = 0;
+        public void UpdateProgress(LfxProgress progress) {
+            var type = progress.Type;
+            var bytes = progress.Bytes;
 
-            m_progress[type] += value;
+            if (!m_progressBytes.ContainsKey(type))
+                m_progressBytes[type] = 0;
+
+            m_progressBytes[type] += bytes;
             Log();
         }
         public void SetTotal(LfxProgressType type, long value) {
-            m_progress.GetOrAdd(type, 0);
-            m_total[type] = value;
+            m_progressBytes.GetOrAdd(type, 0);
+            m_totalBytes[type] = value;
         }
         public void Finished() {
-            foreach (var pair in m_total)
-                m_progress[pair.Key] = pair.Value;
+            foreach (var pair in m_totalBytes)
+                m_progressBytes[pair.Key] = pair.Value;
             Log();
         }
 
@@ -73,9 +76,9 @@ namespace Lfx {
             var sb = new StringBuilder();
 
             foreach (var o in
-                from progress in m_progress
+                from progress in m_progressBytes
                 orderby progress.Key
-                join total in m_total on progress.Key equals total.Key into totalForProgress
+                join total in m_totalBytes on progress.Key equals total.Key into totalForProgress
                 from total in totalForProgress.DefaultIfEmpty()
                 select new {
                     Type = progress.Key,
@@ -163,8 +166,8 @@ namespace Lfx {
         private void Log(string message = null) {
             Console.WriteLine(message);
         }
-        private LfxProgress LogProgress() {
-            var progress = new LfxProgress();
+        private LfxProgressTracker LogProgress() {
+            var progress = new LfxProgressTracker();
             m_env.OnProgress += progress.UpdateProgress;
             return progress;
         }
@@ -329,7 +332,7 @@ namespace Lfx {
             var isQuiet = args.IsSet(LfxCmdSwitches.Q, LfxCmdSwitches.Quite);
             var progress = !isQuiet ? LogProgress() : null;
 
-            // simpler, but we use DataFlowBlocks instead just for fun...
+            // simpler, but we use DataFlowBlocks instead just for fun... rx tomorrow!
             //Parallel.ForEach(m_env.InfoDir.GetAllFiles(), infoPath => {
             //    var info = LfxInfo.Load(infoPath);
             //    var cachePath = m_env.GetOrLoadContentAsync(info).Await();

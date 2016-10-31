@@ -66,11 +66,11 @@ namespace Lfx {
                 m_busCacheDir = m_diskCacheDir;
 
             m_loader = new LfxLoader(m_diskCacheDir, m_busCacheDir, m_lanCacheDir);
-            m_loader.OnProgress += (type, progress) => OnProgress(type, progress);
+            m_loader.OnProgress += progress => OnProgress(progress);
         }
 
         // compose loader
-        public Action<LfxProgressType, long> OnProgress;
+        public event LfxProgressDelegate OnProgress;
         public Task<string> GetOrLoadContentAsync(LfxInfo info) {
             return m_loader.GetOrLoadContentAsync(info);
         }

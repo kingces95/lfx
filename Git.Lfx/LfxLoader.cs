@@ -10,12 +10,42 @@ using System.Linq;
 
 namespace Git.Lfx {
 
+    [Flags]
     public enum LfxProgressType {
         None = 0,
-        Download = 1,
-        Copy = 2,
-        Expand = 3,
+        Download = 1 << 0,
+        Copy = 1 << 2,
+        Expand = 1 << 3,
     }
+
+    public struct LfxProgress {
+        public static LfxProgress Download(string path, long bytes) {
+            return new LfxProgress(LfxProgressType.Download, path, bytes);
+        }
+        public static LfxProgress Copy(string path, long bytes) {
+            return new LfxProgress(LfxProgressType.Copy, path, bytes);
+        }
+        public static LfxProgress Expand(string path, long bytes) {
+            return new LfxProgress(LfxProgressType.Expand, path, bytes);
+        }
+
+        private readonly LfxProgressType m_type;
+        private readonly string m_path;
+        private readonly long m_bytes;
+
+        public LfxProgress(LfxProgressType type, string path, long bytes) {
+            m_type = type;
+            m_path = path;
+            m_bytes = bytes;
+        }
+
+        public LfxProgressType Type => m_type;
+        public long Bytes => m_bytes;
+        public string Path => m_path;
+
+        public override string ToString() => $"{m_type}, bytes={m_bytes}, path={m_path}";
+    }
+    public delegate void LfxProgressDelegate(LfxProgress progress);
 
     public sealed class LfxLoader {
         private delegate string LfxDownloadDelegate(LfxHash hash, string targetPath);
@@ -38,7 +68,8 @@ namespace Git.Lfx {
 
                 if (busCacheDir != null) {
                     m_busCache = new AsyncSelfLoadingDirectory(busCacheDir, PartitionHash);
-                    m_busCache.OnCopyProgress += progress => OnCopyProgress?.Invoke(progress);
+                    m_busCache.OnCopyProgress += (path, bytes) =>
+                    RaiseProgressEvent(LfxProgress.Copy(path, bytes));
 
                     // busCache delegates to lanCache, else downloads
                     m_busCache.OnTryLoadAsync += async (hash, tempPath) => {
@@ -54,7 +85,8 @@ namespace Git.Lfx {
                 }
 
                 m_diskCache = new AsyncSelfLoadingDirectory(diskCacheDir, PartitionHash);
-                m_diskCache.OnCopyProgress += progress => OnCopyProgress?.Invoke(progress);
+                m_diskCache.OnCopyProgress += (path, bytes) =>
+                    RaiseProgressEvent(LfxProgress.Copy(path, bytes));
 
                 // diskCache delegates to busCache, then expands
                 m_diskCache.OnTryLoadAsync += async (hash, tempPath) => {
@@ -113,8 +145,11 @@ namespace Git.Lfx {
 
                 return null;
             }
+            private void RaiseProgressEvent(LfxProgress progress) {
+                OnProgress?.Invoke(progress);
+            }
 
-            internal event Action<long> OnCopyProgress;
+            internal event LfxProgressDelegate OnProgress;
             internal event LfxDownloadDelegate OnDownload;
             internal event LfxDownloadAsyncDelegate OnAsyncDownload;
             internal event LfxExpandAsyncDelegate OnAsyncExpand;
@@ -295,19 +330,18 @@ namespace Git.Lfx {
 
                 // expand zip
                 if (pointer.IsZip)
-                    return await compressedPath.ExpandZip(tempDir, progress =>
-                        RaiseProgressEvent(LfxProgressType.Expand, progress));
+                    return await compressedPath.ExpandZip(tempDir, bytes =>
+                        RaiseProgressEvent(LfxProgress.Expand(tempDir, bytes)));
 
                 // expand exe
                 else if (pointer.IsExe)
-                    return await compressedPath.ExpandExe(tempDir, pointer.Args, progress =>
-                        RaiseProgressEvent(LfxProgressType.Expand, progress));
+                    return await compressedPath.ExpandExe(tempDir, pointer.Args, bytes =>
+                        RaiseProgressEvent(LfxProgress.Expand(tempDir, bytes)));
+
 
                 throw new Exception($"Could not expand unreconginzed pointer '{pointer}'.");
             };
-            m_contentCache.OnCopyProgress += progress => {
-                RaiseProgressEvent(LfxProgressType.Copy, progress);
-            };
+            m_contentCache.OnProgress += RaiseProgressEvent;
 
             m_infoCache = new LfxInfoCache(
                 diskCacheDir: diskCacheDir.PathCombine(HashToInfoDirName),
@@ -321,8 +355,8 @@ namespace Git.Lfx {
             // download!
             var byteHash = await url.DownloadAndHash(
                 tempPath: targetPath, 
-                onProgress: progress => 
-                    RaiseProgressEvent(LfxProgressType.Download, progress)
+                onProgress: progress => RaiseProgressEvent(
+                    LfxProgress.Download(targetPath, progress))
             );
 
             var downloadHash = LfxHash.Create(byteHash);
@@ -345,10 +379,10 @@ namespace Git.Lfx {
         }
 
         // events
-        private void RaiseProgressEvent(LfxProgressType type, long progress) {
-            OnProgress?.Invoke(type, progress);
+        private void RaiseProgressEvent(LfxProgress progress) {
+            OnProgress?.Invoke(progress);
         }
-        public event Action<LfxProgressType, long> OnProgress;
+        public event LfxProgressDelegate OnProgress;
 
         // fetch
         public LfxEntry GetOrLoadEntry(LfxPointer pointer) {
