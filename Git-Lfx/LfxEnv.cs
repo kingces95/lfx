@@ -5,6 +5,46 @@ using System.IO;
 using System.Threading.Tasks;
 
 namespace Lfx {
+    public struct LfxRepoInfo {
+        public static implicit operator LfxInfo(LfxRepoInfo info) => info.m_info;
+
+        private readonly LfxInfo m_info;
+        private readonly string m_infoPath;
+        private readonly string m_contentPath;
+
+        public LfxRepoInfo(
+            LfxEnv env,
+            string infoPath) {
+
+            m_infoPath = infoPath;
+            m_info = LfxInfo.Load(infoPath);
+
+            var recursiveDir = env.InfoDir.GetRecursiveDir(infoPath);
+            m_contentPath = env.ContentDir.PathCombine(recursiveDir, infoPath.GetFileName());
+        }
+
+        // repo paths
+        public string InfoPath => m_infoPath;
+        public string ContentPath => m_contentPath;
+
+        // compose info
+        public LfxInfo Info => m_info;
+        public LfxPointer Pointer => m_info.Pointer;
+        public bool HasMetadata => Info.HasMetadata;
+        public LfxPointerType Type => Info.Type;
+        public bool IsExe => Info.IsExe;
+        public bool IsZip => Info.IsZip;
+        public bool IsFile => Info.IsFile;
+        public int Version => Info.Version;
+        public Uri Url => Info.Url;
+        public LfxHash Hash => Info.Hash;
+        public string Args => Info.Args;
+        public long Size => Info.Size;
+        public long? ContentSize => Info.ContentSize;
+
+
+        public override string ToString() => InfoPath;
+    }
 
     public sealed class LfxEnv {
         public const string LfxInfoDirName = @".lfx";
@@ -71,11 +111,14 @@ namespace Lfx {
 
         // compose loader
         public event LfxProgressDelegate OnProgress;
-        public Task<string> GetOrLoadContentAsync(LfxInfo info) {
-            return m_loader.GetOrLoadContentAsync(info);
+        public Task<LfxEntry> GetOrLoadEntryAsync(LfxInfo info) {
+            if (!info.HasMetadata)
+                return GetOrLoadEntryAsync(info.Pointer);
+
+            return GetOrLoadEntryAsync(info.Pointer, info.Hash);
         }
-        public LfxEntry GetOrLoadEntry(LfxPointer pointer) {
-            return m_loader.GetOrLoadEntry(pointer);
+        public Task<LfxEntry> GetOrLoadEntryAsync(LfxPointer pointer, LfxHash? expectedHash = null) {
+            return m_loader.GetOrLoadEntryAsync(pointer, expectedHash);
         }
 
         // environmental paths
@@ -87,11 +130,19 @@ namespace Lfx {
         public string BusCacheDir => m_busCacheDir;
         public string LanCacheDir => m_lanCacheDir;
 
+        public LfxRepoInfo GetRepoInfo(string repoInfoPath) {
+            return new LfxRepoInfo(this, repoInfoPath);
+        }
+
         // housecleaning
         public void ClearCache() {
             DiskCacheDir.DeletePath();
             BusCacheDir.DeletePath();
         }
         public void CleanCache() => m_loader.Clean();
+
+        internal Task GetOrLoadEntryAsync(object pointer) {
+            throw new NotImplementedException();
+        }
     }
 }

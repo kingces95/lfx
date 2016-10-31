@@ -259,9 +259,9 @@ namespace Util {
         public static bool PathRootEquals(this string path, string target) {
             return IOPath.GetPathRoot(path).EqualsIgnoreCase(IOPath.GetPathRoot(target));
         }
-        public static bool PathExistsAsFile(this string path) => File.Exists(path);
-        public static bool PathExistsAsDirectory(this string path) => Directory.Exists(path);
-        public static bool PathExists(this string path) => path.PathExistsAsFile() || path.PathExistsAsDirectory();
+        public static bool PathIsFile(this string path) => File.Exists(path);
+        public static bool PathIsDirectory(this string path) => Directory.Exists(path);
+        public static bool PathExists(this string path) => path.PathIsFile() || path.PathIsDirectory();
         public static bool PathIsRooted(this string path) => IOPath.IsPathRooted(path);
 
         // transforms
@@ -391,12 +391,12 @@ namespace Util {
 
             Directory.CreateDirectory(target.GetDir());
 
-            if (path.PathExistsAsFile()) {
+            if (path.PathIsFile()) {
                 if (!Kernel32.CreateHardLink(target, path, IntPtr.Zero))
                     throw new ArgumentException($"Failed to create hard link '{path}' -> '{target}'.");
             } 
             
-            else if (path.PathExistsAsDirectory()) {
+            else if (path.PathIsDirectory()) {
                 JunctionPoint.Create(path, target, overwrite: true);
             } 
             
@@ -406,10 +406,10 @@ namespace Util {
             return target;
         }
         public static IEnumerable<string> GetPathAliases(this string path) {
-            if (path.PathExistsAsFile())
+            if (path.PathIsFile())
                 return HardLinkInfo.GetLinks(path);
 
-            if (path.PathExistsAsDirectory()) {
+            if (path.PathIsDirectory()) {
                 if (!JunctionPoint.Exists(path))
                     return Enumerable.Empty<string>();
 
@@ -417,6 +417,10 @@ namespace Util {
             }
             
             else throw new IOException($"The path '{path}' does not exist.");
+        }
+
+        public static void WriteAllText(this string path, string text) {
+            File.WriteAllText(path, text);
         }
     }
 
@@ -542,6 +546,13 @@ namespace Util {
 
             return await tcs.Task;
         }
+
+        public static Task JoinWith(this Task task, params Task[] tasks) {
+            return Task.WhenAll(new[] { task }
+                .Concat(tasks ?? Enumerable.Empty<Task>())
+                .Where(o => o != null)
+            );
+        }
     }
 
     // misc
@@ -562,6 +573,16 @@ namespace Util {
             if (source.Length > length)
                 return source.Substring(0, length);
             return source.PadRight(length);
+        }
+
+        // string builder
+        public static void AppendLine(this StringBuilder stringBuilder, object value) {
+            if (value == null)
+                value = string.Empty;
+
+            value = value.ToString();
+
+            stringBuilder.AppendLine((string)value);
         }
 
         // uri

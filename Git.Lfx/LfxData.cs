@@ -57,6 +57,7 @@ namespace Git.Lfx {
             m_value = value;
         }
 
+        public bool IsEmpty => m_value == null;
         public byte[] Value => m_value.Value;
 
         public override bool Equals(object obj) => obj is LfxHash ? ((LfxHash)obj).m_value == m_value : false;
@@ -136,42 +137,52 @@ namespace Git.Lfx {
         public override string ToString() => $"{Url}";
     }
 
-    public struct LfxCheckedPointer : IEquatable<LfxCheckedPointer> {
-        public static bool operator ==(LfxCheckedPointer lhs, LfxCheckedPointer rhs) => lhs.Equals(rhs);
-        public static bool operator !=(LfxCheckedPointer lhs, LfxCheckedPointer rhs) => !lhs.Equals(rhs);
-        public static implicit operator Uri(LfxCheckedPointer pointer) => pointer.Url;
-        public static implicit operator LfxHash(LfxCheckedPointer pointer) => pointer.Hash;
-        public static implicit operator LfxPointer(LfxCheckedPointer pointer) => pointer.Pointer;
+    public struct LfxMetadata : IEquatable<LfxMetadata> {
 
-        public static LfxCheckedPointer Create(LfxPointer pointer, LfxHash hash) => new LfxCheckedPointer(pointer, hash);
+        public static bool operator ==(LfxMetadata lhs, LfxMetadata rhs) => lhs.Equals(rhs);
+        public static bool operator !=(LfxMetadata lhs, LfxMetadata rhs) => !lhs.Equals(rhs);
 
-        private readonly LfxPointer m_pointer;
-        private readonly LfxHash m_hash;
+        public static LfxMetadata Create(LfxHash hash, long size, long? contentSize = null) {
+            return new LfxMetadata(hash, size, contentSize);
+        }
+        public static LfxMetadata Create(LfxHash hash, string cachePath, string compressedPath = null) {
 
-        private LfxCheckedPointer(
-            LfxPointer pointer,
-            LfxHash hash)
-            : this() {
+            // file
+            if (cachePath.PathIsFile())
+                return new LfxMetadata(hash, cachePath.GetFileSize());
 
-            m_pointer = pointer;
-            m_hash = hash;
+            // directory
+            var dirSize = cachePath.GetDirectorySize();
+            var fileSize = compressedPath.GetFileSize();
+            return new LfxMetadata(hash, fileSize, dirSize);
         }
 
-        public LfxPointer Pointer => m_pointer;
+        private readonly LfxHash m_hash;
+        private readonly long m_size;
+        private readonly long? m_contentSize;
 
-        public LfxPointerType Type => Pointer.Type;
-        public bool IsExe => Type == LfxPointerType.Exe;
-        public bool IsZip => Type == LfxPointerType.Zip;
-        public bool IsFile => Type == LfxPointerType.File;
+        private LfxMetadata(
+            LfxHash hash,
+            long size,
+            long? contentSize = null)
+            : this() {
 
-        public int Version => Pointer.Version;
-        public Uri Url => Pointer.Url;
+            m_hash = hash;
+            m_size = size;
+            m_contentSize = contentSize;
+        }
+
+        // metadata
         public LfxHash Hash => m_hash;
-        public string Args => Pointer.Args;
+        public long Size => m_size;
+        public long? ContentSize => m_contentSize;
 
-        public override bool Equals(object obj) => obj is LfxCheckedPointer ? Equals((LfxCheckedPointer)obj) : false;
-        public bool Equals(LfxCheckedPointer other) {
-            if (Pointer != other.Pointer)
+        public override bool Equals(object obj) => obj is LfxMetadata ? Equals((LfxMetadata)obj) : false;
+        public bool Equals(LfxMetadata other) {
+            if (Size != other.Size)
+                return false;
+
+            if (ContentSize != other.ContentSize)
                 return false;
 
             if (Hash != other.Hash)
@@ -182,12 +193,13 @@ namespace Git.Lfx {
         public override int GetHashCode() {
             var hashcode = 0;
 
-            hashcode ^= Pointer.GetHashCode();
             hashcode ^= Hash.GetHashCode();
+            hashcode ^= Size.GetHashCode();
+            hashcode ^= ContentSize?.GetHashCode() ?? 0;
 
             return hashcode;
         }
-        public override string ToString() => $"{Pointer}";
+        public override string ToString() => Hash;
     }
 
     [DebuggerDisplay("{Url}")]
@@ -195,32 +207,8 @@ namespace Git.Lfx {
         public static bool operator ==(LfxInfo lhs, LfxInfo rhs) => lhs.Equals(rhs);
         public static bool operator !=(LfxInfo lhs, LfxInfo rhs) => !lhs.Equals(rhs);
 
-        public static LfxInfo Create(LfxCheckedPointer pointer, long size, long? contentSize = null) {
-            return new LfxInfo(pointer, size, contentSize);
-        }
-        public static LfxInfo Create(LfxPointer pointer, string cachePath, string compressedPath = null) {
-            var url = pointer.Url;
-            var hash = LfxHash.Parse(Path.GetFileName(cachePath));
-            var checkedPointer = LfxCheckedPointer.Create(pointer, hash);
-
-            // file
-            if (pointer.IsFile)
-                return Create(checkedPointer, cachePath.GetFileSize());
-
-            // archive
-            if (compressedPath == null)
-                throw new ArgumentException(
-                    $"To create an archive pointer supply a compressed path.");
-
-            var dirSize = cachePath.GetDirectorySize();
-            var fileSize = compressedPath.GetFileSize();
-
-            // exe
-            if (pointer.IsExe)
-                return Create(checkedPointer, fileSize, dirSize);
-
-            // zip
-            return Create(checkedPointer, fileSize, dirSize);
+        public static LfxInfo Create(LfxPointer pointer, LfxMetadata? metadata = null) {
+            return new LfxInfo(pointer, metadata);
         }
 
         public static LfxInfo Load(string path) {
@@ -260,14 +248,15 @@ namespace Git.Lfx {
                     type == LfxPointerType.Zip ? LfxPointer.CreateZip(url) :
                     LfxPointer.CreateExe(url, args);
 
-                // hash
+                // pointer only?
                 var hashLine = sr.ReadLine();
+                if (hashLine == null)
+                    return Create(pointer);
+
+                // hash
                 LfxHash hash;
                 if (!LfxHash.TryParse(hashLine, out hash))
                     throw new Exception($"LfxPointer '{path}' has unrecognized url '{urlLine}'.");
-
-                // checked pointer
-                var checkedPointer = LfxCheckedPointer.Create(pointer, hash);
 
                 // size
                 var sizeLine = sr.ReadLine();
@@ -276,9 +265,9 @@ namespace Git.Lfx {
                     throw new Exception($"LfxPointer '{path}' has unrecognized size '{sizeLine}'.");
 
                 // file
-                LfxInfo info = default(LfxInfo);
+                LfxMetadata metadata = default(LfxMetadata);
                 if (type == LfxPointerType.File)
-                    info = Create(checkedPointer, size);
+                    metadata = LfxMetadata.Create(hash, size);
 
                 // archive
                 else {
@@ -289,7 +278,7 @@ namespace Git.Lfx {
                     if (!int.TryParse(contentSizeLine, out contentSize))
                         throw new Exception($"LfxPointer '{path}' has unrecognized content size '{contentSizeLine}'.");
 
-                    info = Create(checkedPointer, size, contentSize);
+                    metadata = LfxMetadata.Create(hash, size, contentSize);
                 }
 
                 // eof
@@ -297,56 +286,59 @@ namespace Git.Lfx {
                 if (lastLine != null)
                         throw new Exception($"LfxPointer '{path}' has unrecognized line '{lastLine}'.");
 
-                return info;
+                return Create(pointer, metadata);
             }
         }
 
-        private readonly LfxCheckedPointer m_pointer;
-        private readonly long m_size;
-        private readonly long m_contentSize;
+        private readonly LfxPointer m_pointer;
+        private readonly LfxMetadata? m_metadata;
 
         private LfxInfo(
-            LfxCheckedPointer pointer,
-            long size,
-            long? contentSize = null)
+            LfxPointer pointer,
+            LfxMetadata? metadata)
             : this() {
 
             m_pointer = pointer;
-            m_size = size;
-            m_contentSize = contentSize ?? -1L;
+            m_metadata = metadata;
         }
 
-        public LfxCheckedPointer Pointer => m_pointer;
-
+        // type
         public LfxPointerType Type => Pointer.Type;
         public bool IsExe => Type == LfxPointerType.Exe;
         public bool IsZip => Type == LfxPointerType.Zip;
         public bool IsFile => Type == LfxPointerType.File;
 
+        // poitner
+        public LfxPointer Pointer => m_pointer;
         public int Version => Pointer.Version;
         public Uri Url => Pointer.Url;
-        public LfxHash Hash => Pointer.Hash;
         public string Args => Pointer.Args;
 
-        public long Size => m_size;
-        public long ContentSize => m_contentSize;
+        // metadata
+        public bool HasMetadata => m_metadata != null;
+        public LfxMetadata Metadata {
+            get {
+                if (m_metadata == null)
+                    throw new InvalidOperationException(
+                        $"Info for pointer '{m_pointer}' has no metadata.");
 
-        public void Save(StreamWriter stream) {
-            stream.WriteLine(Type);
-            stream.WriteLine(Version);
-            stream.WriteLine(Url);
-            if (Type == LfxPointerType.Exe)
-                stream.WriteLine(Args);
-            stream.WriteLine(Hash);
-            stream.WriteLine(Size);
-            if (Type != LfxPointerType.File)
-                stream.WriteLine(ContentSize);
+                return m_metadata.Value;
+            }
         }
+        public LfxHash Hash => Metadata.Hash;
+        public long Size => Metadata.Size;
+        public long? ContentSize => Metadata.ContentSize;
 
         public override bool Equals(object obj) => obj is LfxInfo ? Equals((LfxInfo)obj) : false;
         public bool Equals(LfxInfo other) {
             if (Pointer != other.Pointer)
                 return false;
+
+            if (HasMetadata != other.HasMetadata)
+                return false;
+
+            if (!HasMetadata)
+                return true;
 
             if (Size != other.Size)
                 return false;
@@ -354,11 +346,15 @@ namespace Git.Lfx {
             if (ContentSize != other.ContentSize)
                 return false;
 
+            if (Hash != other.Hash)
+                return false;
+
             return true;
         }
         public override int GetHashCode() {
             var hashcode = 0;
 
+            hashcode ^= Hash.GetHashCode();
             hashcode ^= Pointer.GetHashCode();
             hashcode ^= Size.GetHashCode();
             hashcode ^= ContentSize.GetHashCode();
@@ -366,15 +362,19 @@ namespace Git.Lfx {
             return hashcode;
         }
         public override string ToString() {
-            var ms = new MemoryStream();
-            using (var sw = new StreamWriter(ms)) {
-                Save(sw);
-                sw.Flush();
+            var sb = new StringBuilder();
 
-                ms.Position = 0;
-                using (var sr = new StreamReader(ms))
-                    return sr.ReadToEnd();
-            }
+            sb.AppendLine(Type);
+            sb.AppendLine(Version);
+            sb.AppendLine(Url);
+            if (Type == LfxPointerType.Exe)
+                sb.AppendLine(Args);
+            sb.AppendLine(Hash);
+            sb.AppendLine(Size);
+            if (Type != LfxPointerType.File)
+                sb.AppendLine(ContentSize);
+
+            return sb.ToString();
         }
     }
 

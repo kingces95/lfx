@@ -102,7 +102,7 @@ namespace Git.Lfx {
             }
 
             private async Task<string> RaiseDownloadEvent(LfxHash hash, string tempPath) {
-                if (OnAsyncDownload == null)
+                if (OnDownloadAsync == null)
                     return null;
 
                 // try synchronous downloading
@@ -118,7 +118,7 @@ namespace Git.Lfx {
 
                 // try asynchronous downloading
                 foreach (LfxDownloadAsyncDelegate o in 
-                    OnAsyncDownload?.GetInvocationList() ?? Enumerable.Empty<Delegate>()) {
+                    OnDownloadAsync?.GetInvocationList() ?? Enumerable.Empty<Delegate>()) {
 
                     var downloadPath = await o(hash, tempPath);
                     if (downloadPath == null)
@@ -130,11 +130,11 @@ namespace Git.Lfx {
                 return null;
             }
             private async Task<string> RaiseExpandEvent(LfxHash hash, string sourcePath, string tempPath) {
-                if (OnAsyncExpand == null)
+                if (OnExpandAsync == null)
                     return null;
 
                 foreach (LfxExpandAsyncDelegate expand in
-                    OnAsyncExpand?.GetInvocationList() ?? Enumerable.Empty<Delegate>()) {
+                    OnExpandAsync?.GetInvocationList() ?? Enumerable.Empty<Delegate>()) {
 
                     var expandedPath = await expand(hash, sourcePath, tempPath);
                     if (expandedPath == null)
@@ -151,8 +151,8 @@ namespace Git.Lfx {
 
             internal event LfxProgressDelegate OnProgress;
             internal event LfxDownloadDelegate OnDownload;
-            internal event LfxDownloadAsyncDelegate OnAsyncDownload;
-            internal event LfxExpandAsyncDelegate OnAsyncExpand;
+            internal event LfxDownloadAsyncDelegate OnDownloadAsync;
+            internal event LfxExpandAsyncDelegate OnExpandAsync;
 
             internal bool TryGetPath(LfxHash hash, out string path) {
                 return m_diskCache.TryGetPath(hash, out path);
@@ -270,6 +270,16 @@ namespace Git.Lfx {
                 hash
             );
         }
+        private static async Task<LfxHash> DownloadAsync(Uri url, string targetPath, Action<LfxProgress> onProgress) {
+
+            var byteHash = await url.DownloadAndHash(
+                tempPath: targetPath,
+                onProgress: progress => 
+                    onProgress(LfxProgress.Download(targetPath, progress))
+            );
+
+            return LfxHash.Create(byteHash);
+        }
 
         public const string PointerDirName = "pointers";
         public const string UrlToHashDirName = "urlToHash";
@@ -277,7 +287,8 @@ namespace Git.Lfx {
         public const string CompressedDirName = "compressed";
         public const string ExpandedDirName = "expanded";
 
-        private readonly ConcurrentDictionary<LfxHash, LfxPointer> m_pointers;
+        // todo: replace with delegates add/removes
+        private readonly ConcurrentDictionary<LfxHash, LfxPointer> m_pointers; 
         private readonly LfxContentCache m_contentCache;
         private readonly LfxUrlToHashCache m_urlToHashCache;
         private readonly LfxInfoCache m_infoCache;
@@ -303,14 +314,14 @@ namespace Git.Lfx {
                 busCacheDir: busCacheDir.PathCombine(CompressedDirName),
                 lanCacheDir: lanCacheDir?.PathCombine(CompressedDirName)
             );
-            m_contentCache.OnAsyncDownload += async (expectedHash, targetPath) => {
+            m_contentCache.OnDownloadAsync += async (expectedHash, targetPath) => {
 
                 // lookup pointer
                 var pointer = m_pointers[expectedHash];
                 var url = pointer.Url;
 
                 // download!
-                var downloadHash = await DownloadAsync(url, targetPath);
+                var downloadHash = await DownloadAsync(url, targetPath, RaiseProgressEvent);
 
                 // verify hash
                 if (expectedHash != null && expectedHash != downloadHash)
@@ -320,7 +331,7 @@ namespace Git.Lfx {
 
                 return targetPath;
             };
-            m_contentCache.OnAsyncExpand += async (hash, compressedPath, tempDir) => {
+            m_contentCache.OnExpandAsync += async (hash, compressedPath, tempDir) => {
 
                 var pointer = m_pointers[hash];
 
@@ -350,33 +361,6 @@ namespace Git.Lfx {
             );
         }
 
-        private async Task<LfxHash> DownloadAsync(Uri url, string targetPath) {
-            
-            // download!
-            var byteHash = await url.DownloadAndHash(
-                tempPath: targetPath, 
-                onProgress: progress => RaiseProgressEvent(
-                    LfxProgress.Download(targetPath, progress))
-            );
-
-            var downloadHash = LfxHash.Create(byteHash);
-
-            return downloadHash;
-        }
-        private async Task<string> GetContentAsync(LfxPointer pointer, LfxHash hash) {
-            var url = pointer.Url;
-
-            // register hash -> pointer
-            m_pointers.GetOrAdd(hash, pointer);
-
-            // load hash -> content
-            var contentPath = await m_contentCache.TryGetOrLoadExpandedPathAsync(hash);
-
-            // save url -> hash
-            await m_urlToHashCache.PutAsync(url, hash);
-
-            return contentPath;
-        }
 
         // events
         private void RaiseProgressEvent(LfxProgress progress) {
@@ -385,52 +369,67 @@ namespace Git.Lfx {
         public event LfxProgressDelegate OnProgress;
 
         // fetch
-        public LfxEntry GetOrLoadEntry(LfxPointer pointer) {
-
-            // try caches
+        public async Task<LfxEntry> GetOrLoadEntryAsync(LfxPointer pointer, LfxHash? expectedHash = null) {
             LfxHash hash;
-            if (m_urlToHashCache.TryGetValue(pointer, out hash)) {
+            var url = pointer.Url;
 
-                LfxInfo info = default(LfxInfo);
-                if (m_infoCache.TryGetValue(hash, out info)) {
-                    var contentPath = GetContentAsync(pointer, hash).Await();
-                    return LfxEntry.Create(info, contentPath);
+            if (expectedHash == null) {
+
+                // discover hash using url?
+                if (m_urlToHashCache.TryGetValue(url, out hash))
+                    return await GetOrLoadEntryAsync(pointer, hash);
+
+                // eager download
+                var downloadPath = m_contentCache.GetTempDownloadPath();
+                hash = await DownloadAsync(url, downloadPath, RaiseProgressEvent);
+
+                // prevent self-loading cache from re-downloading content
+                LfxDownloadDelegate downloadDelegate = null;
+                m_contentCache.OnDownload += downloadDelegate = (_expectedHash, _downloadPath) => {
+
+                    // return freshly downloaded content for this hash
+                    if (_expectedHash == hash)
+                        return downloadPath;
+
+                    return null;
+                };
+
+                try {
+                    return await GetOrLoadEntryAsync(pointer, hash);
+                } finally {
+                    m_contentCache.OnDownload -= downloadDelegate;
                 }
             }
 
-            // download to staging path
-            var url = pointer.Url;
-            var downloadPath = m_contentCache.GetTempDownloadPath();
-            hash = DownloadAsync(url, downloadPath).Await();
-                
-            // populate cache with downloaded file
-            LfxDownloadDelegate downloadDelegate = (expectedHash, _) => {
-                return expectedHash == hash ? downloadPath : null;
-            };
-            m_contentCache.OnDownload += downloadDelegate;
-            try {
+            hash = expectedHash.Value;
 
-                // create info!
-                var contentPath = GetContentAsync(pointer, hash).Await();
-                var compressedPath = m_contentCache.TryGetOrLoadCompressedPathAsync(hash).Await();
-                var info = LfxInfo.Create(pointer, contentPath, compressedPath);
+            // register hash -> pointer
+            m_pointers.GetOrAdd(hash, pointer);
+
+            // get or self-load content
+            var contentPath = await m_contentCache.TryGetOrLoadExpandedPathAsync(hash);
+
+            // save url -> hash
+            await m_urlToHashCache.PutAsync(url, hash);
+
+            // metadata cached?
+            LfxInfo info;
+            if (!m_infoCache.TryGetValue(hash, out info)) {
+
+                // get compressed content
+                var compressedPath = await m_contentCache.TryGetOrLoadCompressedPathAsync(hash);
+
+                // compute metadata
+                var metadata = LfxMetadata.Create(hash, contentPath, compressedPath);
+
+                // create info
+                info = LfxInfo.Create(pointer, metadata);
 
                 // cache info
-                GetOrLoadContentAsync(info).Await();
-
-                return LfxEntry.Create(info, contentPath);
-            } 
-            finally {
-                m_contentCache.OnDownload -= downloadDelegate;
+                await m_infoCache.PutAsync(info.Hash, info);
             }
-        }
-        public async Task<string> GetOrLoadContentAsync(LfxInfo info) {
-            var contentPath = await GetContentAsync(info.Pointer, info.Hash);
 
-            // cache info
-            await m_infoCache.PutAsync(info.Hash, info);
-
-            return contentPath;
+            return LfxEntry.Create(info, contentPath);
         }
 
         // housekeeping

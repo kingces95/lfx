@@ -24,17 +24,6 @@ namespace Lfx {
         Force, F,
     }
 
-    public struct LfxRepoInfo {
-        public LfxInfo Value;
-        public string Path;
-
-        public LfxRepoInfo(LfxInfo info, string path) {
-            Value = info;
-            Path = path;
-        }
-
-        public override string ToString() => Path;
-    }
     public sealed class LfxProgressTracker {
         private readonly ConcurrentDictionary<LfxProgressType, long> m_totalBytes;
         private readonly ConcurrentDictionary<LfxProgressType, long> m_progressBytes;
@@ -250,17 +239,17 @@ namespace Lfx {
             // dump
         }
 
-        public void Pull() {
+        public Task Pull() {
             // pull --exe tools\git https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/PortableGit-2.10.1-32-bit.7z.exe "-y -gm2 -InstallPath=\"{0}\""
             // pull --zip packages\Xamarin.Forms https://www.nuget.org/api/v2/package/Xamarin.Forms/2.3.2.127
             // pull nuget.exe https://dist.nuget.org/win-x86-commandline/v3.5.0/NuGet.exe
-            FetchOrPull(isPull: true);
+            return FetchOrPull(isPull: true);
         }
-        public void Fetch() {
+        public Task Fetch() {
             // fetch --exe https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/PortableGit-2.10.1-32-bit.7z.exe "-y -gm2 -InstallPath=\"{0}\""
-            FetchOrPull(isPull: false);
+            return FetchOrPull(isPull: false);
         }
-        private void FetchOrPull(bool isPull) {
+        private async Task FetchOrPull(bool isPull) {
 
             var minArgs = isPull ? 2 : 1;
             var urlArgIndex = isPull ? 1 : 0;
@@ -296,7 +285,7 @@ namespace Lfx {
                 LogProgress();
 
             // load!
-            var entry = m_env.GetOrLoadEntry(pointer);
+            var entry = await m_env.GetOrLoadEntryAsync(pointer);
 
             // fetch
             if (!isPull) {
@@ -310,7 +299,7 @@ namespace Lfx {
                 throw new ArgumentException(
                     $"Expected path '{repoContentPath}' to be in/a subdirectory of '{m_env.ContentDir}'.");
 
-            // alias cached content into lfx subdirectory (bam!)
+            // add alias to cached content (wha-bam!)
             entry.Path.AliasPath(repoContentPath);
 
             // write info to .lfx subdirectory
@@ -320,7 +309,7 @@ namespace Lfx {
             File.WriteAllText(repoPointerPath, entry.Info.ToString());
         }
 
-        public void Checkout() {
+        public async Task Checkout() {
             // checkout
 
             var args = Parse(
@@ -338,7 +327,7 @@ namespace Lfx {
             // log progress
             var isQuiet = args.IsSet(LfxCmdSwitches.Q, LfxCmdSwitches.Quite);
             LfxProgressTracker progress = null;
-            Task progressTask = null;
+            Task progressTask = Task.FromResult(true);
 
             if (!isQuiet) {
                 progress = LogProgress();
@@ -348,9 +337,12 @@ namespace Lfx {
 
                 progressTask = Task.Run(() => {
                     foreach (var infoPath in m_env.InfoDir.GetAllFiles()) {
-                        var info = LfxInfo.Load(infoPath);
-                        totalContentSize += info.ContentSize;
-                        totalFileSize += info.Size;
+                        var repoInfo = m_env.GetRepoInfo(infoPath);
+                        if (!repoInfo.HasMetadata)
+                            continue;
+
+                        totalContentSize += repoInfo.ContentSize ?? 0;
+                        totalFileSize += repoInfo.Size;
                     };
 
                     progress.SetTotal(LfxProgressType.Download, totalFileSize);
@@ -358,15 +350,20 @@ namespace Lfx {
                 });
             }
 
+            // alias every repo info file in parallel
             var restoreTask = m_env.InfoDir.GetAllFiles().ParallelForEachAsync(async infoPath => {
-                var info = LfxInfo.Load(infoPath);
-                var cachePath = await m_env.GetOrLoadContentAsync(info);
-                var recursiveDir = m_env.InfoDir.GetRecursiveDir(infoPath);
-                var contentPath = m_env.ContentDir.PathCombine(recursiveDir, infoPath.GetFileName());
-                cachePath.AliasPath(contentPath);
+                var repoInfo = m_env.GetRepoInfo(infoPath);
+                var cacheEntry = await m_env.GetOrLoadEntryAsync(repoInfo);
+
+                // add alias to cached content (wha-bam!)
+                cacheEntry.Path.AliasPath(repoInfo.ContentPath);
+
+                // update repo info file with metadata
+                if (repoInfo.Info != cacheEntry.Info)
+                    infoPath.WriteAllText(cacheEntry.Info.ToString());
             });
 
-            Task.WaitAll(progressTask, restoreTask);
+            await restoreTask.JoinWith(progressTask);
 
             if (!isQuiet)
                 progress.Finished();
