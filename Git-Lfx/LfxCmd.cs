@@ -139,17 +139,8 @@ namespace Lfx {
                 if (result != null)
                     result.Wait();
 
-            } catch (TargetInvocationException tie) {
-                var e = tie.InnerException;
-
-                var ae = e as AggregateException;
-                if (ae != null)
-                    e = ae.InnerException;
-
-                Log($"{e.GetType()}: {e.Message}");
-
             } catch (Exception e) {
-                Log($"{e.GetType()}: {e.Message}");
+                Log(e);
             }
         }
         private GitCmdArgs Parse(
@@ -161,6 +152,19 @@ namespace Lfx {
                 switchInfo = GitCmdSwitchInfo.Create();
 
             return GitCmdArgs.Parse(m_commandLine, minArgs, maxArgs, switchInfo);
+        }
+        private void Log(Exception e) {
+            while (e is TargetInvocationException)
+                e = e.InnerException;
+
+            var ae = e as AggregateException;
+            if (ae != null) {
+                foreach (var aei in ae.InnerExceptions)
+                    Log(aei);
+                return;
+            }
+
+            Log($"{e.GetType()}: {e.Message}");
         }
         private void Log(object obj) => Log(obj?.ToString());
         private void Log(string message = null) {
@@ -327,6 +331,9 @@ namespace Lfx {
                     LfxCmdSwitches.Q
                )
             );
+
+            // todo: compute diff to update. for now, nuke lfx
+            m_env.ContentDir.DeletePath(force: true);
 
             // log progress
             var isQuiet = args.IsSet(LfxCmdSwitches.Q, LfxCmdSwitches.Quite);

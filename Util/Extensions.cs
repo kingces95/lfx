@@ -334,10 +334,17 @@ namespace Util {
 
             // delete directory
             if (Directory.Exists(path)) {
+
+                // delete subDirs
+                foreach (var subDir in path.GetDirectories())
+                    subDir.DeletePath(force);
+
+                // delete files
                 foreach (var file in path.GetAllFiles())
                     file.DeletePath(force);
 
-                Directory.Delete(path, recursive: true);
+                // delete dir
+                Directory.Delete(path);
                 return true;
             }
 
