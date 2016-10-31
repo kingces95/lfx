@@ -12,6 +12,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Net;
 using System.Reflection;
+using System.Threading.Tasks.Dataflow;
 
 namespace Util {
 
@@ -61,17 +62,26 @@ namespace Util {
                 if (Directory.Exists(filePath))
                     return;
 
-                var fileSize = new FileInfo(e.FullPath).Length;
+                try {
+                    // race to get FileInfo
+                    var fileSize = new FileInfo(e.FullPath).Length;
 
-                // get and update last file size
-                long lastFileSize;
-                lock (fileSizeByPath) {
-                    fileSizeByPath.TryGetValue(filePath, out lastFileSize);
-                    fileSizeByPath[filePath] = fileSize;
+                    // get and update last file size
+                    long lastFileSize;
+                    lock (fileSizeByPath) {
+                        fileSizeByPath.TryGetValue(filePath, out lastFileSize);
+                        fileSizeByPath[filePath] = fileSize;
+                    }
+
+                    // report delta in file size!
+                    onGrowth?.Invoke(filePath, fileSize - lastFileSize);
+
+                } catch (FileNotFoundException) {
+                    // lost race to get FileInfo; E.g. when the windows git-package.exe 
+                    // expansion finishes it runs a post-install script which it then
+                    // deletes. If we get notified and lose the race to read info with
+                    // the delete then a FileNotFoundException is raised.
                 }
-
-                // report delta in file size!
-                onGrowth?.Invoke(filePath, fileSize - lastFileSize);
             };
 
             return monitor;
@@ -126,17 +136,14 @@ namespace Util {
             string targetDir, 
             Action<long> onProgress = null) {
 
-            var zipFile = ZipFile.Open(zipFilePath, ZipArchiveMode.Read);
+            await Task.Run(() => {
 
-            // allow parallel foreach to yield thread
-            await Task.Run(() =>
+                var zipFile = ZipFile.Open(zipFilePath, ZipArchiveMode.Read);
 
-                // unzip entries in parallel
-                Parallel.ForEach(zipFile.Entries, entry => {
-
+                foreach (var entry in zipFile.Entries) {
                     // ignore directories
                     if (IOPath.GetFileName(entry.FullName).Length == 0)
-                        return;
+                        continue;
 
                     // throw if unzipping target is outside of targetDir
                     var targetPath = IOPath.Combine(targetDir, entry.FullName);
@@ -145,6 +152,7 @@ namespace Util {
                             $"Zip package '{zipFilePath}' entry '{entry.FullName}' is outside package.");
 
                     // unzip entry
+                    Directory.CreateDirectory(targetPath.GetDir());
                     using (var targeStream = File.OpenWrite(targetPath)) {
                         using (var sourceStream = entry.Open()) {
 
@@ -152,8 +160,8 @@ namespace Util {
                             sourceStream.CopyTo(targeStream, onProgress: onProgress);
                         }
                     }
-                })
-            );
+                }
+            });
 
             return targetDir;
         }
@@ -367,13 +375,20 @@ namespace Util {
         // aliases
         public static string AliasPath(this string path, string target) {
 
-            if (path.PathExistsAsFile())
+            if (target.PathExists())
+                target.DeletePath();
+
+            Directory.CreateDirectory(target.GetDir());
+
+            if (path.PathExistsAsFile()) {
                 if (!Kernel32.CreateHardLink(target, path, IntPtr.Zero))
                     throw new ArgumentException($"Failed to create hard link '{path}' -> '{target}'.");
-
-            else if (path.PathExistsAsDirectory())
-                JunctionPoint.Create(path, target);
-
+            } 
+            
+            else if (path.PathExistsAsDirectory()) {
+                JunctionPoint.Create(path, target, overwrite: true);
+            } 
+            
             else
                 throw new IOException($"The path '{path}' does not exist.");
 
@@ -496,26 +511,26 @@ namespace Util {
         public static Task WaitOneAsync(this WaitHandle waitHandle) {
             return waitHandle.WaitOneAsync(() => true);
         }
-    public static async Task<T> WaitOneAsync<T>(this WaitHandle waitHandle, Func<T> result) {
-        if (waitHandle == null)
-            throw new ArgumentNullException(nameof(waitHandle));
+        public static async Task<T> WaitOneAsync<T>(this WaitHandle waitHandle, Func<T> result) {
+            if (waitHandle == null)
+                throw new ArgumentNullException(nameof(waitHandle));
 
-        var tcs = new TaskCompletionSource<T>();
+            var tcs = new TaskCompletionSource<T>();
 
-        RegisteredWaitHandle rwh = null;
-        rwh = ThreadPool.RegisterWaitForSingleObject(
-            waitObject: waitHandle,
-            callBack: (s, t) => {
-                rwh.Unregister(null);
-                tcs.TrySetResult(result());
-            },
-            state: null,
-            millisecondsTimeOutInterval: -1,
-            executeOnlyOnce: true
-        );
+            RegisteredWaitHandle rwh = null;
+            rwh = ThreadPool.RegisterWaitForSingleObject(
+                waitObject: waitHandle,
+                callBack: (s, t) => {
+                    rwh.Unregister(null);
+                    tcs.TrySetResult(result());
+                },
+                state: null,
+                millisecondsTimeOutInterval: -1,
+                executeOnlyOnce: true
+            );
 
-        return await tcs.Task;
-    }
+            return await tcs.Task;
+        }
     }
 
     // misc

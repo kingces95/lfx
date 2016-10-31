@@ -13,15 +13,17 @@ namespace Util {
     public delegate bool TryGetValueDelegate<TKey, T>(TKey key, out T value);
     public sealed class AsyncSelfLoadingDictionary<TKey, T> {
 
-        private readonly ConcurrentDictionary<TKey, Task<KeyValuePair<bool, T>>> m_values;
+        private readonly ConcurrentDictionary<TKey, LazyTask<KeyValuePair<bool, T>>> m_values;
 
         public AsyncSelfLoadingDictionary() {
-            m_values = new ConcurrentDictionary<TKey, Task<KeyValuePair<bool, T>>>();
+            m_values = new ConcurrentDictionary<TKey, LazyTask<KeyValuePair<bool, T>>>();
         }
 
         private async Task<KeyValuePair<bool, T>> RaiseTryLoadAsyncEvent(TKey key) {
             if (OnTryLoadAsync != null) {
-                foreach (TryGetValueAsyncDelegate<TKey, T> o in OnTryLoadAsync.GetInvocationList()) {
+                foreach (TryGetValueAsyncDelegate<TKey, T> o in 
+                    OnTryLoadAsync?.GetInvocationList() ?? Enumerable.Empty<Delegate>()) {
+
                     var result = await o(key);
                     if (result.Key)
                         return result;
@@ -36,7 +38,9 @@ namespace Util {
             if (OnTryLoadAsync == null)
                 return false;
                 
-            foreach (TryGetValueDelegate<TKey, T> o in OnTryLoad.GetInvocationList()) {
+            foreach (TryGetValueDelegate<TKey, T> o in
+                OnTryLoad?.GetInvocationList() ?? Enumerable.Empty<Delegate>()) {
+
                 if (o(key, out result))
                     return true;
             }
@@ -55,16 +59,16 @@ namespace Util {
             value = default(T);
 
             // never loaded?
-            Task<KeyValuePair<bool, T>> taskValue;
+            LazyTask<KeyValuePair<bool, T>> taskValue;
             if (!m_values.TryGetValue(key, out taskValue))
                 return false;
 
             // load pending?
-            if (!taskValue.IsCompleted)
+            if (!taskValue.Value.IsCompleted)
                 return false;
 
             // load failed?
-            var pair = taskValue.Result;
+            var pair = taskValue.Value.Result;
             if (!pair.Key)
                 return false;
 
@@ -74,52 +78,18 @@ namespace Util {
         }
         public async Task<KeyValuePair<bool, T>> TryGetOrLoadValueAsync(TKey key) {
 
-            ManualResetEvent mre = null;
-            Task<KeyValuePair<bool, T>> freshTask = null;
-            Exception ex = null;
-
-            var cachedTask = m_values.GetOrAdd(key, delegate {
+            return await m_values.GetOrAdd(key, delegate {
 
                 // try synchronous load
                 T value = default(T);
                 if (RaiseTryLoadEvent(key, out value))
-                    return Task.FromResult(new KeyValuePair<bool, T>(true, value));
+                    return LazyTask.FromResult(new KeyValuePair<bool, T>(true, value));
 
-                // threads not driving async load block on WaitHandle
-                mre = new ManualResetEvent(false);
-
-                // when WaitHandle is singled, result is available in m_values
-                return freshTask = mre.WaitOneAsync(() => {
-                    if (ex != null)
-                        throw ex;
-
-                    return m_values[key].Result;
-                });
+                // asynchronous load
+                return new LazyTask<KeyValuePair<bool, T>>(
+                    async () => await RaiseTryLoadAsyncEvent(key)
+                );
             });
-
-            // synchronous load or lost race to perform load
-            if (freshTask != cachedTask)
-                return await cachedTask;
-
-            try {
-                // async load!
-                var loadResult = await RaiseTryLoadAsyncEvent(key);
-
-                // cache result, free WaitHandle
-                m_values[key] = Task.FromResult(loadResult);
-
-                // finished
-                return loadResult;
-
-                // capture error so it can be rethrown by waiting threads
-            } catch (Exception e) {
-                ex = e;
-                throw e;
-
-                // notify threads of load compleation
-            } finally {
-                mre.Set();
-            }
         }
     }
 
@@ -231,7 +201,7 @@ namespace Util {
             return Path.Combine(m_tempDir, Path.GetRandomFileName());
         }
 
-        public Task<string> EchoText(string text, string key) {
+        public Task<string> EchoText(string key, string text) {
             
             // write text to temp file
             var tempPath = GetTempPath();
@@ -306,12 +276,14 @@ namespace Util {
             if (OnTryLoadAsync == null)
                 return null;
 
-            foreach (LoadFileAsyncDelegate o in OnTryLoadAsync.GetInvocationList()) {
-                var result = await o(hash, tempPath);
-                if (result == null)
+            foreach (LoadFileAsyncDelegate o in 
+                OnTryLoadAsync?.GetInvocationList() ?? Enumerable.Empty<Delegate>()) {
+
+                var resultPath = await o(hash, tempPath);
+                if (resultPath == null)
                     continue;
 
-                return tempPath;
+                return resultPath;
             }
 
             return null;

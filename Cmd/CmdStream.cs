@@ -54,7 +54,7 @@ namespace Git {
         private readonly Stream m_standardOutput;
         private readonly Task m_consumeStandardError;
         private readonly Stream m_standardError;
-        private readonly Lazy<Task> m_exitedAsync;
+        private readonly LazyTask m_exitedAsync;
         private long m_position;
 
         private CmdStream(ProcessStartInfo processStartInfo, Stream inputStream) {
@@ -62,7 +62,7 @@ namespace Git {
             m_id = m_process.Id;
             m_standardOutput = m_process.StandardOutput.BaseStream;
             m_standardError = new MemoryStream();
-            m_exitedAsync = new Lazy<Task>(() => {
+            m_exitedAsync = new LazyTask(() => {
                 var are = new AutoResetEvent(false);
                 m_process.Exited += delegate { are.Set(); };
                 if (m_process.HasExited)

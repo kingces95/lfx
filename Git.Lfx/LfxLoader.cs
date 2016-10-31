@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Linq;
 
 namespace Git.Lfx {
 
@@ -48,7 +49,7 @@ namespace Git.Lfx {
                             return lanCachePath;
 
                         // download
-                        return await RaiseDownload(LfxHash.Parse(hash), tempPath);
+                        return await RaiseDownloadEvent(LfxHash.Parse(hash), tempPath);
                     };
                 }
 
@@ -58,50 +59,56 @@ namespace Git.Lfx {
                 // diskCache delegates to busCache, then expands
                 m_diskCache.OnTryLoadAsync += async (hash, tempPath) => {
 
-                    // try lan cache
+                    // try bus cache
                     var busCachePath = await m_busCache.TryGetOrLoadPathAsync(hash);
                     if (busCachePath == null)
                         return null;
 
                     // expand
-                    return await RaiseExpand(LfxHash.Parse(hash), busCachePath, tempPath);
+                    return await RaiseExpandEvent(LfxHash.Parse(hash), busCachePath, tempPath);
                 };
             }
 
-            private async Task<string> RaiseDownload(LfxHash hash, string tempPath) {
+            private async Task<string> RaiseDownloadEvent(LfxHash hash, string tempPath) {
                 if (OnAsyncDownload == null)
                     return null;
 
                 // try synchronous downloading
-                foreach (LfxDownloadDelegate o in OnDownload.GetInvocationList()) {
-                    var result = o(hash, tempPath);
-                    if (result == null)
+                foreach (LfxDownloadDelegate o in 
+                    OnDownload?.GetInvocationList() ?? Enumerable.Empty<Delegate>()) {
+
+                    var downloadPath = o(hash, tempPath);
+                    if (downloadPath == null)
                         continue;
 
-                    return tempPath;
+                    return downloadPath;
                 }
 
                 // try asynchronous downloading
-                foreach (LfxDownloadAsyncDelegate o in OnAsyncDownload.GetInvocationList()) {
-                    var result = await o(hash, tempPath);
-                    if (result == null)
+                foreach (LfxDownloadAsyncDelegate o in 
+                    OnAsyncDownload?.GetInvocationList() ?? Enumerable.Empty<Delegate>()) {
+
+                    var downloadPath = await o(hash, tempPath);
+                    if (downloadPath == null)
                         continue;
 
-                    return tempPath;
+                    return downloadPath;
                 }
 
                 return null;
             }
-            private async Task<string> RaiseExpand(LfxHash hash, string sourcePath, string tempPath) {
+            private async Task<string> RaiseExpandEvent(LfxHash hash, string sourcePath, string tempPath) {
                 if (OnAsyncExpand == null)
                     return null;
 
-                foreach (LfxExpandAsyncDelegate expand in OnAsyncExpand.GetInvocationList()) {
-                    var result = await expand(hash, sourcePath, tempPath);
-                    if (result == null)
+                foreach (LfxExpandAsyncDelegate expand in
+                    OnAsyncExpand?.GetInvocationList() ?? Enumerable.Empty<Delegate>()) {
+
+                    var expandedPath = await expand(hash, sourcePath, tempPath);
+                    if (expandedPath == null)
                         continue;
 
-                    return tempPath;
+                    return expandedPath;
                 }
 
                 return null;
@@ -119,7 +126,7 @@ namespace Git.Lfx {
                 return await m_diskCache.TryGetOrLoadPathAsync(hash);
             }
             internal async Task<string> TryGetOrLoadCompressedPathAsync(LfxHash hash) {
-                return await m_diskCache.TryGetOrLoadPathAsync(hash);
+                return await m_busCache.TryGetOrLoadPathAsync(hash);
             }
             internal string GetTempDownloadPath() => m_busCache.GetTempPath();
 
@@ -156,8 +163,8 @@ namespace Git.Lfx {
                         return false;
                 }
 
-                hash = LfxHash.Create(hashPath);
-                return true;
+                hash = LfxHash.Parse(File.ReadAllText(hashPath));
+                    return true;
             }
             internal Task PutAsync(Uri url, LfxHash hash) {
                 var urlHash = GetUrlHash(url);

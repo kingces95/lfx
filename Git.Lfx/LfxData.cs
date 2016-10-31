@@ -277,7 +277,7 @@ namespace Git.Lfx {
 
                 // file
                 LfxInfo info = default(LfxInfo);
-                if (type != LfxPointerType.File)
+                if (type == LfxPointerType.File)
                     info = Create(checkedPointer, size);
 
                 // archive
