@@ -320,7 +320,7 @@ namespace Lfx {
             File.WriteAllText(repoPointerPath, entry.Info.ToString());
         }
 
-        public async Task Checkout() {
+        public void Checkout() {
             // checkout
 
             var args = Parse(
@@ -337,67 +337,39 @@ namespace Lfx {
 
             // log progress
             var isQuiet = args.IsSet(LfxCmdSwitches.Q, LfxCmdSwitches.Quite);
-            var progress = !isQuiet ? LogProgress() : null;
+            LfxProgressTracker progress = null;
+            Task progressTask = null;
 
-            // simpler, but we use DataFlowBlocks instead just for fun... rx tomorrow!
-            //Parallel.ForEach(m_env.InfoDir.GetAllFiles(), infoPath => {
-            //    var info = LfxInfo.Load(infoPath);
-            //    var cachePath = m_env.GetOrLoadContentAsync(info).Await();
-            //    var recursiveDir = m_env.InfoDir.GetRecursiveDir(infoPath);
-            //    var contentPath = m_env.ContentDir.PathCombine(recursiveDir, infoPath.GetFileName());
-            //    cachePath.AliasPath(contentPath);
-            //});
+            if (!isQuiet) {
+                progress = LogProgress();
 
-            long totalFileSize = 0;
-            long totalContentSize = 0;
+                long totalFileSize = 0;
+                long totalContentSize = 0;
 
-            var blockOptions = new ExecutionDataflowBlockOptions {
-                MaxDegreeOfParallelism = Environment.ProcessorCount
-            };
+                progressTask = Task.Run(() => {
+                    foreach (var infoPath in m_env.InfoDir.GetAllFiles()) {
+                        var info = LfxInfo.Load(infoPath);
+                        totalContentSize += info.ContentSize;
+                        totalFileSize += info.Size;
+                    };
 
-            var linkOptions = new DataflowLinkOptions {
-                PropagateCompletion = true
-            };
+                    progress.SetTotal(LfxProgressType.Download, totalFileSize);
+                    progress.SetTotal(LfxProgressType.Expand, totalContentSize);
+                });
+            }
 
-            // deserialize
-            var deserializeInfoBlock = new TransformBlock<string, LfxRepoInfo>(infoPath => {
+            var restoreTask = m_env.InfoDir.GetAllFiles().ParallelForEachAsync(async infoPath => {
                 var info = LfxInfo.Load(infoPath);
-                Interlocked.Add(ref totalFileSize, info.Size);
-                Interlocked.Add(ref totalContentSize, info.ContentSize);
-
-                return new LfxRepoInfo(info, infoPath);
-            }, blockOptions);
-
-            var computeTotalWork = Task.Run(async () => {
-                await deserializeInfoBlock.Completion;
-                progress.SetTotal(LfxProgressType.Download, totalFileSize);
-                progress.SetTotal(LfxProgressType.Expand, totalContentSize);
+                var cachePath = await m_env.GetOrLoadContentAsync(info);
+                var recursiveDir = m_env.InfoDir.GetRecursiveDir(infoPath);
+                var contentPath = m_env.ContentDir.PathCombine(recursiveDir, infoPath.GetFileName());
+                cachePath.AliasPath(contentPath);
             });
 
-            // checkout
-            var checkoutBlock = new ActionBlock<LfxRepoInfo>(async repoInfo => {
-                var cachePath = await m_env.GetOrLoadContentAsync(repoInfo.Value);
-                var recursiveDir = m_env.InfoDir.GetRecursiveDir(repoInfo.Path);
-                var contentPath = m_env.ContentDir.PathCombine(recursiveDir, repoInfo.Path.GetFileName());
-                cachePath.AliasPath(contentPath);
+            Task.WaitAll(progressTask, restoreTask);
 
-            }, blockOptions);
-
-            // deserialize -> checkout
-            deserializeInfoBlock.LinkTo(checkoutBlock, linkOptions);
-
-            // post files in .lfx
-            foreach (var o in m_env.InfoDir.GetAllFiles())
-                await deserializeInfoBlock.SendAsync(o);
-
-            // await compleations
-            deserializeInfoBlock.Complete();
-            Task.WaitAll(
-                computeTotalWork,
-                checkoutBlock.Completion
-            );
-
-            progress.Finished();
+            if (!isQuiet)
+                progress.Finished();
         }
     }
 }

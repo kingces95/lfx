@@ -335,13 +335,17 @@ namespace Util {
             // delete directory
             if (Directory.Exists(path)) {
 
-                // delete subDirs
-                foreach (var subDir in path.GetDirectories())
-                    subDir.DeletePath(force);
+                // don't recursively delete content in a junction point
+                if (!JunctionPoint.Exists(path)) {
 
-                // delete files
-                foreach (var file in path.GetAllFiles())
-                    file.DeletePath(force);
+                    // delete subDirs
+                    foreach (var subDir in path.GetDirectories())
+                        subDir.DeletePath(force);
+
+                    // delete files
+                    foreach (var file in path.GetAllFiles())
+                        file.DeletePath(force);
+                }
 
                 // delete dir
                 Directory.Delete(path);
@@ -619,6 +623,30 @@ namespace Util {
             var bf = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
             var method = type.GetMethod(name, bf);
             return method != method.GetBaseDefinition();
+        }
+
+        public static void ParallelForEach<T>(this IEnumerable<T> source, Action<T> action) {
+            Parallel.ForEach(source, action);
+        }
+        public static async Task ParallelForEachAsync<T>(this IEnumerable<T> source, Action<T> action) {
+            await Task.Run(() => source.ParallelForEach(action));
+        }
+        public static async Task ParallelForEachAsync<T>(this IEnumerable<T> source, Func<T, Task> action) {
+
+            // checkout
+            var actionBlock = new ActionBlock<T>(
+                action: async o => await action(o), 
+                dataflowBlockOptions: new ExecutionDataflowBlockOptions {
+                    MaxDegreeOfParallelism = Environment.ProcessorCount
+                });
+
+            // go!
+            foreach (var o in source)
+                await actionBlock.SendAsync(o);
+
+            // await compleation
+            actionBlock.Complete();
+            await actionBlock.Completion;
         }
     }
 }
