@@ -25,65 +25,95 @@ namespace Lfx {
     }
 
     public sealed class LfxProgressTracker {
-        private readonly ConcurrentDictionary<LfxProgressType, long> m_totalBytes;
-        private readonly ConcurrentDictionary<LfxProgressType, long> m_progressBytes;
 
-        public LfxProgressTracker() {
-            m_totalBytes = new ConcurrentDictionary<LfxProgressType, long>();
-            m_progressBytes = new ConcurrentDictionary<LfxProgressType, long>();
-        }
+        private sealed class Tracker {
+            private readonly LfxProgressType m_type;
+            private long m_totalBytes;
+            private long m_progressBytes;
 
-        private void Log() {
-            lock (this) {
-                Console.Write(ToString().PadRight(Console.WindowWidth - 1));
-                Console.CursorLeft = 0;
+            internal Tracker(LfxProgressType type) {
+                m_type = type;
+            }
+
+            internal LfxProgressType Type => m_type;
+            internal void UpdateProgress(LfxProgress progress) {
+                Interlocked.Add(ref m_progressBytes, progress.Bytes);
+            }
+            internal void SetTotal(long bytes) {
+                m_totalBytes = bytes;
+            }
+            internal void Finish() {
+                m_progressBytes = m_totalBytes;
+            }
+
+            public override string ToString() {
+                var sb = new StringBuilder();
+                sb.Append($"{m_type}: {m_progressBytes.ToFileSize()}");
+                if (m_totalBytes != 0)
+                    sb.Append($" ({m_progressBytes / (double)m_totalBytes:P})");
+
+                return sb.ToString();
             }
         }
 
+        private readonly LfxEnv m_env;
+        private readonly ConcurrentDictionary<LfxProgressType, Tracker> m_trackers;
+
+        public LfxProgressTracker(LfxEnv env) {
+            m_env = env;
+            m_trackers = new ConcurrentDictionary<LfxProgressType, Tracker>();
+        }
+
+        private void Log() {
+            m_env.ReLog(ToString());
+        }
+        private Tracker GetTracker(LfxProgressType type) {
+            return m_trackers.GetOrAdd(type, o => new Tracker(o));
+        }
+
+        public Task ComputeTotalsAsync(LfxEnv env) {
+            long totalFileSize = 0;
+            long totalContentSize = 0;
+
+            return Task.Run(() => {
+                foreach (var infoPath in env.InfoDir.GetAllFiles()) {
+                    var repoInfo = env.GetRepoInfo(infoPath);
+
+                    // missing metadata; progress not possible
+                    if (!repoInfo.HasMetadata)
+                        return;
+
+                    totalContentSize += repoInfo.ContentSize ?? 0;
+                    totalFileSize += repoInfo.Size;
+                };
+
+                lock (this) {
+                    GetTracker(LfxProgressType.Download).SetTotal(totalFileSize);
+                    GetTracker(LfxProgressType.Expand).SetTotal(totalContentSize);
+                }
+            });
+        }
         public void UpdateProgress(LfxProgress progress) {
-            var type = progress.Type;
-            var bytes = progress.Bytes;
-
-            if (!m_progressBytes.ContainsKey(type))
-                m_progressBytes[type] = 0;
-
-            m_progressBytes[type] += bytes;
+            var tracker = GetTracker(progress.Type);
+            lock (this)
+                tracker.UpdateProgress(progress);
             Log();
         }
-        public void SetTotal(LfxProgressType type, long value) {
-            m_progressBytes.GetOrAdd(type, 0);
-            m_totalBytes[type] = value;
-        }
         public void Finished() {
-            foreach (var pair in m_totalBytes)
-                m_progressBytes[pair.Key] = pair.Value;
+            foreach (var tracker in m_trackers.Values)
+                tracker.Finish();
             Log();
         }
 
         public override string ToString() {
 
-            var sb = new StringBuilder();
+            var trackers =
+                from tracker in m_trackers.Values
+                orderby tracker.Type
+                select tracker;
 
-            foreach (var o in
-                from progress in m_progressBytes
-                orderby progress.Key
-                join total in m_totalBytes on progress.Key equals total.Key into totalForProgress
-                from total in totalForProgress.DefaultIfEmpty()
-                select new {
-                    Type = progress.Key,
-                    Total = total.Value,
-                    Progress = progress.Value
-                }
-            ) {
-                if (sb.Length != 0)
-                    sb.Append(", ");
-
-                sb.Append($"{o.Type}: {o.Progress.ToFileSize()}");
-                if (o.Total != 0)
-                    sb.Append($" ({o.Progress / (double)o.Total:P})");
-            }
-
-            return sb.ToString();
+            lock (this)
+                return string.Join(", ", trackers.Select(o => o.ToString()).ToArray());
         }
     }
 
@@ -142,6 +172,7 @@ namespace Lfx {
 
             return GitCmdArgs.Parse(m_commandLine, minArgs, maxArgs, switchInfo);
         }
+        private void Log(object value = null) => m_env.Log(value);
         private void Log(Exception e) {
             while (e is TargetInvocationException)
                 e = e.InnerException;
@@ -155,12 +186,8 @@ namespace Lfx {
 
             Log($"{e.GetType()}: {e.Message}");
         }
-        private void Log(object obj) => Log(obj?.ToString());
-        private void Log(string message = null) {
-            Console.WriteLine(message);
-        }
         private LfxProgressTracker LogProgress() {
-            var progress = new LfxProgressTracker();
+            var progress = new LfxProgressTracker(m_env);
             m_env.OnProgress += progress.UpdateProgress;
             return progress;
         }
@@ -331,23 +358,7 @@ namespace Lfx {
 
             if (!isQuiet) {
                 progress = LogProgress();
-
-                long totalFileSize = 0;
-                long totalContentSize = 0;
-
-                progressTask = Task.Run(() => {
-                    foreach (var infoPath in m_env.InfoDir.GetAllFiles()) {
-                        var repoInfo = m_env.GetRepoInfo(infoPath);
-                        if (!repoInfo.HasMetadata)
-                            continue;
-
-                        totalContentSize += repoInfo.ContentSize ?? 0;
-                        totalFileSize += repoInfo.Size;
-                    };
-
-                    progress.SetTotal(LfxProgressType.Download, totalFileSize);
-                    progress.SetTotal(LfxProgressType.Expand, totalContentSize);
-                });
+                progressTask = progress.ComputeTotalsAsync(m_env);
             }
 
             // alias every repo info file in parallel

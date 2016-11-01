@@ -3,6 +3,7 @@ using Git.Lfx;
 using Util;
 using System.IO;
 using System.Threading.Tasks;
+using System.Reflection;
 
 namespace Lfx {
     public struct LfxRepoInfo {
@@ -41,7 +42,6 @@ namespace Lfx {
         public string Args => Info.Args;
         public long Size => Info.Size;
         public long? ContentSize => Info.ContentSize;
-
 
         public override string ToString() => InfoPath;
     }
@@ -107,6 +107,20 @@ namespace Lfx {
 
             m_loader = new LfxLoader(m_diskCacheDir, m_busCacheDir, m_lanCacheDir);
             m_loader.OnProgress += progress => OnProgress(progress);
+        }
+
+        public void ReLog(object obj = null) {
+            var value = obj?.ToString() ?? string.Empty;
+            value = value.PadRight(Console.WindowWidth - 1);
+
+            lock (this) {
+                Console.Write(value);
+                Console.CursorLeft = 0;
+            }
+        }
+        public void Log(object obj = null) {
+            lock(this)
+                Console.WriteLine(obj?.ToString());
         }
 
         // compose loader
