@@ -218,19 +218,19 @@ namespace Git.Lfx {
                 var typeLine = sr.ReadLine();
                 LfxPointerType type;
                 if (!Enum.TryParse(typeLine, ignoreCase: true, result: out type))
-                    throw new Exception($"LfxPointer '{path}' has unrecognized type '{typeLine}'.");
+                    throw new Exception($"LfxPointer '{path}' failed to parse type '{typeLine}'.");
 
                 // version
                 var versionLine = sr.ReadLine();
                 int version;
                 if (!int.TryParse(versionLine, out version))
-                    throw new Exception($"LfxPointer '{path}' has unrecognized version '{versionLine}'.");
+                    throw new Exception($"LfxPointer '{path}' failed to parse version '{versionLine}'.");
 
                 // url
                 var urlLine = sr.ReadLine();
                 Uri url;
                 if (!Uri.TryCreate(urlLine, UriKind.Absolute, out url))
-                    throw new Exception($"LfxPointer '{path}' has unrecognized url '{urlLine}'.");
+                    throw new Exception($"LfxPointer '{path}' failed to parse url '{urlLine}'.");
 
                 // exe
                 string args = null;
@@ -239,7 +239,7 @@ namespace Git.Lfx {
                     // cmd
                     args = sr.ReadLine();
                     if (args == null)
-                        throw new Exception($"LfxPointer '{path}' has no args specified.");
+                        throw new Exception($"LfxPointer '{path}'failed to parse args.");
                 }
 
                 // pointer
@@ -256,13 +256,13 @@ namespace Git.Lfx {
                 // hash
                 LfxHash hash;
                 if (!LfxHash.TryParse(hashLine, out hash))
-                    throw new Exception($"LfxPointer '{path}' has unrecognized url '{urlLine}'.");
+                    throw new Exception($"LfxPointer '{path}' failed to parse hash '{urlLine}'.");
 
                 // size
                 var sizeLine = sr.ReadLine();
                 long size;
                 if (!long.TryParse(sizeLine, out size))
-                    throw new Exception($"LfxPointer '{path}' has unrecognized size '{sizeLine}'.");
+                    throw new Exception($"LfxPointer '{path}' failed to parse size '{sizeLine}'.");
 
                 // file
                 LfxMetadata metadata = default(LfxMetadata);
@@ -276,7 +276,7 @@ namespace Git.Lfx {
                     var contentSizeLine = sr.ReadLine();
                     int contentSize;
                     if (!int.TryParse(contentSizeLine, out contentSize))
-                        throw new Exception($"LfxPointer '{path}' has unrecognized content size '{contentSizeLine}'.");
+                        throw new Exception($"LfxPointer '{path}' failed to parse content size '{contentSizeLine}'.");
 
                     metadata = LfxMetadata.Create(hash, size, contentSize);
                 }
@@ -284,7 +284,7 @@ namespace Git.Lfx {
                 // eof
                 var lastLine = sr.ReadLine();
                 if (lastLine != null)
-                        throw new Exception($"LfxPointer '{path}' has unrecognized line '{lastLine}'.");
+                        throw new Exception($"LfxPointer '{path}' has extra line '{lastLine}'.");
 
                 return Create(pointer, metadata);
             }
@@ -327,7 +327,8 @@ namespace Git.Lfx {
         }
         public LfxHash Hash => Metadata.Hash;
         public long Size => Metadata.Size;
-        public long? ContentSize => Metadata.ContentSize;
+        public long? ExpandedSize => Metadata.ContentSize;
+        public long ContentSize => ExpandedSize ?? Size;
 
         public override bool Equals(object obj) => obj is LfxInfo ? Equals((LfxInfo)obj) : false;
         public bool Equals(LfxInfo other) {
@@ -343,7 +344,7 @@ namespace Git.Lfx {
             if (Size != other.Size)
                 return false;
 
-            if (ContentSize != other.ContentSize)
+            if (ExpandedSize != other.ExpandedSize)
                 return false;
 
             if (Hash != other.Hash)
@@ -357,7 +358,7 @@ namespace Git.Lfx {
             hashcode ^= Hash.GetHashCode();
             hashcode ^= Pointer.GetHashCode();
             hashcode ^= Size.GetHashCode();
-            hashcode ^= ContentSize.GetHashCode();
+            hashcode ^= ExpandedSize.GetHashCode();
 
             return hashcode;
         }
@@ -372,7 +373,7 @@ namespace Git.Lfx {
             sb.AppendLine(Hash);
             sb.AppendLine(Size);
             if (Type != LfxPointerType.File)
-                sb.AppendLine(ContentSize);
+                sb.AppendLine(ExpandedSize);
 
             return sb.ToString();
         }

@@ -220,10 +220,12 @@ namespace Util {
             return target;
         }
 
-        public static string ToFileSize(
-            this long size) {
+        public static string ToFileSize(this long size) {
+            return size.ToStringMetric("b");
+        }
+        public static string ToStringMetric(this long size, string suffix = null) {
 
-            var abbriviations = new[] { "b", "kb", "mb", "gb", "tb", "pb", "eb", "zb" };
+            var abbriviations = new[] { "", "k", "m", "g", "t", "p", "e", "z" };
 
             int thousand = 1000;
             int i = 0;
@@ -234,7 +236,7 @@ namespace Util {
                 i++;
             }
 
-            return $"{(decimal)size / (maxSize / thousand):0.0}{abbriviations[i]}";
+            return $"{(decimal)size / (maxSize / thousand):0.0}{abbriviations[i]}{suffix}";
         }
     }
 

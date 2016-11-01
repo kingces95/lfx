@@ -4,6 +4,8 @@ using Util;
 using System.IO;
 using System.Threading.Tasks;
 using System.Reflection;
+using System.Collections;
+using System.Collections.Generic;
 
 namespace Lfx {
     public struct LfxRepoInfo {
@@ -41,7 +43,7 @@ namespace Lfx {
         public LfxHash Hash => Info.Hash;
         public string Args => Info.Args;
         public long Size => Info.Size;
-        public long? ContentSize => Info.ContentSize;
+        public long? ContentSize => Info.ExpandedSize;
 
         public override string ToString() => InfoPath;
     }
@@ -134,6 +136,9 @@ namespace Lfx {
         public Task<LfxEntry> GetOrLoadEntryAsync(LfxPointer pointer, LfxHash? expectedHash = null) {
             return m_loader.GetOrLoadEntryAsync(pointer, expectedHash);
         }
+        public IEnumerable<LfxEntry> DiskCache() => m_loader.DiskCache();
+        public IEnumerable<LfxEntry> BusCache() => m_loader.BusCache();
+        public IEnumerable<LfxEntry> LanCache() => m_loader.LanCache();
 
         // environmental paths
         public string WorkingDir => m_workingDir;

@@ -69,7 +69,7 @@ namespace Git.Lfx {
                 if (busCacheDir != null) {
                     m_busCache = new AsyncSelfLoadingDirectory(busCacheDir, PartitionHash);
                     m_busCache.OnCopyProgress += (path, bytes) =>
-                    RaiseProgressEvent(LfxProgress.Copy(path, bytes));
+                        RaiseProgressEvent(LfxProgress.Copy(path, bytes));
 
                     // busCache delegates to lanCache, else downloads
                     m_busCache.OnTryLoadAsync += async (hash, tempPath) => {
@@ -164,6 +164,10 @@ namespace Git.Lfx {
                 return await m_busCache.TryGetOrLoadPathAsync(hash);
             }
             internal string GetTempDownloadPath() => m_busCache.GetTempPath();
+
+            internal IEnumerable<string> DiskCache() => m_diskCache;
+            internal IEnumerable<string> BusCache() => m_busCache;
+            internal IEnumerable<string> LanCache() => m_lanCache;
 
             internal void Clean() {
                 m_diskCache.Clean();
@@ -278,6 +282,9 @@ namespace Git.Lfx {
                     onProgress(LfxProgress.Download(targetPath, progress))
             );
 
+            // finish
+            onProgress(LfxProgress.Download(targetPath, -1));
+
             return LfxHash.Create(byteHash);
         }
 
@@ -341,16 +348,21 @@ namespace Git.Lfx {
 
                 // expand zip
                 if (pointer.IsZip)
-                    return await compressedPath.ExpandZip(tempDir, bytes =>
+                    compressedPath = await compressedPath.ExpandZip(tempDir, bytes =>
                         RaiseProgressEvent(LfxProgress.Expand(tempDir, bytes)));
 
                 // expand exe
                 else if (pointer.IsExe)
-                    return await compressedPath.ExpandExe(tempDir, pointer.Args, bytes =>
+                    compressedPath = await compressedPath.ExpandExe(tempDir, pointer.Args, bytes =>
                         RaiseProgressEvent(LfxProgress.Expand(tempDir, bytes)));
 
+                else
+                    throw new Exception($"Could not expand unreconginzed pointer '{pointer}'.");
 
-                throw new Exception($"Could not expand unreconginzed pointer '{pointer}'.");
+                // finished
+                RaiseProgressEvent(LfxProgress.Expand(tempDir, -1));
+
+                return compressedPath;
             };
             m_contentCache.OnProgress += RaiseProgressEvent;
 
@@ -360,7 +372,6 @@ namespace Git.Lfx {
                 lanCacheDir: lanCacheDir?.PathCombine(HashToInfoDirName)
             );
         }
-
 
         // events
         private void RaiseProgressEvent(LfxProgress progress) {
@@ -438,5 +449,19 @@ namespace Git.Lfx {
             m_urlToHashCache.Clean();
             m_infoCache.Clean();
         }
+
+        // reflection
+        private IEnumerable<LfxEntry> Cache(IEnumerable<string> paths) {
+            foreach (var path in paths) {
+                var hash = LfxHash.Parse(path.GetFileName());
+                LfxInfo info;
+                if (!m_infoCache.TryGetValue(hash, out info))
+                    continue;
+                yield return LfxEntry.Create(info, path);
+            }
+        }
+        public IEnumerable<LfxEntry> DiskCache() => Cache(m_contentCache.DiskCache());
+        public IEnumerable<LfxEntry> BusCache() => Cache(m_contentCache.BusCache());
+        public IEnumerable<LfxEntry> LanCache() => Cache(m_contentCache.LanCache());
     }
 }

@@ -260,7 +260,7 @@ namespace Util {
     /// block until the winner loads the content.
     /// </summary>
     public delegate Task<string> LoadFileAsyncDelegate(string hash, string tempPath);
-    public sealed class AsyncSelfLoadingDirectory {
+    public sealed class AsyncSelfLoadingDirectory : IEnumerable<string> {
         private readonly AsyncSelfLoadingDictionary<string, string> m_dictionary;
         private readonly ImmutableDirectory m_directory;
 
@@ -331,5 +331,8 @@ namespace Util {
         public void Clean() {
             m_directory.Clean();
         }
+
+        public IEnumerator<string> GetEnumerator() => m_directory.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

@@ -12,6 +12,7 @@ using Util;
 using System.IO;
 using System.Text;
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 
 namespace Lfx {
 
@@ -22,99 +23,7 @@ namespace Lfx {
         Clean,
         Clear,
         Force, F,
-    }
-
-    public sealed class LfxProgressTracker {
-
-        private sealed class Tracker {
-            private readonly LfxProgressType m_type;
-            private long m_totalBytes;
-            private long m_progressBytes;
-
-            internal Tracker(LfxProgressType type) {
-                m_type = type;
-            }
-
-            internal LfxProgressType Type => m_type;
-            internal void UpdateProgress(LfxProgress progress) {
-                Interlocked.Add(ref m_progressBytes, progress.Bytes);
-            }
-            internal void SetTotal(long bytes) {
-                m_totalBytes = bytes;
-            }
-            internal void Finish() {
-                m_progressBytes = m_totalBytes;
-            }
-
-            public override string ToString() {
-                var sb = new StringBuilder();
-                sb.Append($"{m_type}: {m_progressBytes.ToFileSize()}");
-                if (m_totalBytes != 0)
-                    sb.Append($" ({m_progressBytes / (double)m_totalBytes:P})");
-
-                return sb.ToString();
-            }
-        }
-
-        private readonly LfxEnv m_env;
-        private readonly ConcurrentDictionary<LfxProgressType, Tracker> m_trackers;
-
-        public LfxProgressTracker(LfxEnv env) {
-            m_env = env;
-            m_trackers = new ConcurrentDictionary<LfxProgressType, Tracker>();
-        }
-
-        private void Log() {
-            m_env.ReLog(ToString());
-        }
-        private Tracker GetTracker(LfxProgressType type) {
-            return m_trackers.GetOrAdd(type, o => new Tracker(o));
-        }
-
-        public Task ComputeTotalsAsync(LfxEnv env) {
-            long totalFileSize = 0;
-            long totalContentSize = 0;
-
-            return Task.Run(() => {
-                foreach (var infoPath in env.InfoDir.GetAllFiles()) {
-                    var repoInfo = env.GetRepoInfo(infoPath);
-
-                    // missing metadata; progress not possible
-                    if (!repoInfo.HasMetadata)
-                        return;
-
-                    totalContentSize += repoInfo.ContentSize ?? 0;
-                    totalFileSize += repoInfo.Size;
-                };
-
-                lock (this) {
-                    GetTracker(LfxProgressType.Download).SetTotal(totalFileSize);
-                    GetTracker(LfxProgressType.Expand).SetTotal(totalContentSize);
-                }
-            });
-        }
-        public void UpdateProgress(LfxProgress progress) {
-            var tracker = GetTracker(progress.Type);
-            lock (this)
-                tracker.UpdateProgress(progress);
-            Log();
-        }
-        public void Finished() {
-            foreach (var tracker in m_trackers.Values)
-                tracker.Finish();
-            Log();
-        }
-
-        public override string ToString() {
-
-            var trackers =
-                from tracker in m_trackers.Values
-                orderby tracker.Type
-                select tracker;
-
-            lock (this)
-                return string.Join(", ", trackers.Select(o => o.ToString()).ToArray());
-        }
+        Verbose, V,
     }
 
     public sealed class LfxCmd {
@@ -186,8 +95,8 @@ namespace Lfx {
 
             Log($"{e.GetType()}: {e.Message}");
         }
-        private LfxProgressTracker LogProgress() {
-            var progress = new LfxProgressTracker(m_env);
+        private LfxProgressTracker LogProgress(bool verbose = false) {
+            var progress = new LfxProgressTracker(m_env, verbose);
             m_env.OnProgress += progress.UpdateProgress;
             return progress;
         }
@@ -200,6 +109,7 @@ namespace Lfx {
             Log();
             Log("Checkout                           Sync content in lfx directory using pointers in .lfx directory.");
             Log("    -q, --quite                        Suppress progress reporting.");
+            Log("    -v, --verbose                      Log diagnostic information.");
             Log();
             Log("Pull <path> <url> [<exeCmd>]       Pull content to path in 'lfx' and add corrisponding pointer to '.lfx'.");
             Log("    -q, --quite                        Suppress progress reporting.");
@@ -264,6 +174,17 @@ namespace Lfx {
             }
 
             // dump
+            var header = $"{"type",-4}  {"hash",-8}  {"compressed",-10}  {"expanded",-8}  {"url"} {"[args]"}";
+            Log(header);
+            Log(Regex.Replace(header, @"[^\s]", "-"));
+            var entries =
+                from entry in m_env.BusCache()
+                let info = entry.Info
+                orderby info.Url.ToString()
+                select info;
+            foreach (var o in entries)
+                Log($"{o.Type, -4}  {o.Hash.ToString().Substring(0, 8), 8}  {o.Size.ToFileSize(), 10}  {o.ContentSize.ToFileSize(), 8}  {o.Url} {o.Args}");
+            Log($"{entries.Count(), 15} File(s) {entries.Sum(o => o.ContentSize).ToFileSize(), 10} Bytes");
         }
 
         public Task Pull() {
@@ -274,6 +195,7 @@ namespace Lfx {
         }
         public Task Fetch() {
             // fetch --exe https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/PortableGit-2.10.1-32-bit.7z.exe "-y -gm2 -InstallPath=\"{0}\""
+            // fetch --zip f:\git\lfx-test\.lfx\packages\Xamarin.Android.Support.Animated.Vector.Drawable
             return FetchOrPull(isPull: false);
         }
         private async Task FetchOrPull(bool isPull) {
@@ -343,8 +265,8 @@ namespace Lfx {
                 minArgs: 0,
                 maxArgs: 0,
                 switchInfo: GitCmdSwitchInfo.Create(
-                    LfxCmdSwitches.Quite,
-                    LfxCmdSwitches.Q
+                    LfxCmdSwitches.Quite, LfxCmdSwitches.Q,
+                    LfxCmdSwitches.Verbose, LfxCmdSwitches.V
                )
             );
 
@@ -353,11 +275,12 @@ namespace Lfx {
 
             // log progress
             var isQuiet = args.IsSet(LfxCmdSwitches.Q, LfxCmdSwitches.Quite);
+            var isVerbose = args.IsSet(LfxCmdSwitches.V, LfxCmdSwitches.Verbose);
             LfxProgressTracker progress = null;
             Task progressTask = Task.FromResult(true);
 
             if (!isQuiet) {
-                progress = LogProgress();
+                progress = LogProgress(isVerbose);
                 progressTask = progress.ComputeTotalsAsync(m_env);
             }
 
