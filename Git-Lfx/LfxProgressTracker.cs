@@ -61,20 +61,20 @@ namespace Lfx {
                         m_paths.Add(path);
                         Log($"Begin {Type}: {path}");
                     }
-                }
 
-                if (progress.Bytes == -1) 
-                    Log($"End {Type}: {path}");
+                    if (progress.Bytes == null) 
+                        Log($"End {Type}: {path}");
+                }
             }
 
             internal LfxProgressType Type => m_type;
             internal void UpdateProgress(LfxProgress progress) {
                 LogProgress(progress);
 
-                if (progress.Bytes == -1) 
+                if (progress.Bytes == null) 
                     Interlocked.Increment(ref m_countProgress);
                 else
-                    Interlocked.Add(ref m_bytesProgress, progress.Bytes);
+                    Interlocked.Add(ref m_bytesProgress, (long)progress.Bytes);
             }
             internal void SetTotal(long bytes, long count) {
                 m_bytesTotal = bytes;
@@ -83,6 +83,7 @@ namespace Lfx {
             internal void Finish() {
                 //m_bytesProgress = m_bytesTotal;
                 //m_countProgress = m_countTotal;
+                //LogProgress(progress);
             }
 
             public override string ToString() {

@@ -4,14 +4,9 @@ using System.Linq;
 using System.Reflection;
 using Git;
 using System.Threading.Tasks;
-using System.Threading;
-using System.Diagnostics;
-using System.Threading.Tasks.Dataflow;
 using Git.Lfx;
 using Util;
 using System.IO;
-using System.Text;
-using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
 namespace Lfx {
@@ -24,6 +19,8 @@ namespace Lfx {
         Clear,
         Force, F,
         Verbose, V,
+        Hash,
+        Disk, Bus, Lan
     }
 
     public sealed class LfxCmd {
@@ -121,6 +118,9 @@ namespace Lfx {
             Log("    --zip                              Url points to zip archive.");
             Log("    --exe                              Url points to self expanding archive. Use '{0}' in <cmd> for target directory.");
             Log();
+            Log("Show <url>                         Show cached poitner for url.");
+            Log("    --hash                             Just show the hash for the url.");
+            Log();
             Log("Cache                              Dump cache stats.");
             Log("    --clean                            Delete orphaned temp directories.");
             Log("    --clear                            Delete all caches on this machine.");
@@ -174,16 +174,23 @@ namespace Lfx {
             }
 
             // dump
-            var header = $"{"type",-4}  {"hash",-8}  {"compressed",-10}  {"expanded",-8}  {"url"} {"[args]"}";
-            Log(header);
+            var header = $"{"Type",-4}  {"Hash",-8}  {"Compressed",-10}  {"Expanded",-8}  {"Url_Hash",-8}  {"Url"} {"[Args]"}";
+            Log(header.Replace("_", " "));
             Log(Regex.Replace(header, @"[^\s]", "-"));
             var entries =
                 from entry in m_env.BusCache()
                 let info = entry.Info
                 orderby info.Url.ToString()
                 select info;
-            foreach (var o in entries)
-                Log($"{o.Type, -4}  {o.Hash.ToString().Substring(0, 8), 8}  {o.Size.ToFileSize(), 10}  {o.ContentSize.ToFileSize(), 8}  {o.Url} {o.Args}");
+            foreach (var o in entries) {
+                var type = $"{o.Type}";
+                var urlHash = $"{m_env.GetUrlHash(o.Url).Substring(0, 8)}";
+                var hash = $"{o.Hash.ToString().Substring(0, 8)}";
+                var fileSize = $"{o.Size.ToFileSize()}";
+                var contentSize = $"{o.ContentSize.ToFileSize()}";
+
+                Log($"{type,-4}  {hash,8}  {fileSize,10}  {contentSize,8}  {urlHash,8}  {o.Url} {o.Args}");
+            }
             Log($"{entries.Count(), 15} File(s) {entries.Sum(o => o.ContentSize).ToFileSize(), 10} Bytes");
         }
 
@@ -256,6 +263,38 @@ namespace Lfx {
             var repoPointerPath = Path.Combine(m_env.InfoDir, recursiveDir, repoContentPath.GetFileName());
             Directory.CreateDirectory(repoPointerPath.GetDir());
             File.WriteAllText(repoPointerPath, entry.Info.ToString());
+        }
+
+        public void Show() {
+
+            // parse
+            var args = Parse(
+                minArgs: 1,
+                maxArgs: 1,
+                switchInfo: GitCmdSwitchInfo.Create(
+                    LfxCmdSwitches.Hash 
+               )
+            );
+            var arg = args[0];
+            var justHash = args.IsSet(LfxCmdSwitches.Hash);
+
+            // try url
+            Uri url;
+            if (!Uri.TryCreate(arg, UriKind.Absolute, out url))
+                throw new ArgumentException($"Couldn't parse '{arg}' as url.");
+
+            // just print hash
+            if (justHash) {
+                Log($"{m_env.GetUrlHash(url)}");
+                return;
+            }
+
+            // try get info
+            LfxInfo info;
+            if (!m_env.TryGetInfo(url, out info))
+                throw new ArgumentException($"No pointer cached for url '{url}'.");
+
+            Log(info.ToString());
         }
 
         public async Task Checkout() {

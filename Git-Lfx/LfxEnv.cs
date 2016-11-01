@@ -108,7 +108,7 @@ namespace Lfx {
                 m_busCacheDir = m_diskCacheDir;
 
             m_loader = new LfxLoader(m_diskCacheDir, m_busCacheDir, m_lanCacheDir);
-            m_loader.OnProgress += progress => OnProgress(progress);
+            m_loader.OnProgress += progress => OnProgress?.Invoke(progress);
         }
 
         public void ReLog(object obj = null) {
@@ -121,8 +121,11 @@ namespace Lfx {
             }
         }
         public void Log(object obj = null) {
-            lock(this)
-                Console.WriteLine(obj?.ToString());
+            var value = obj?.ToString() ?? string.Empty;
+            value = value.PadRight(Console.WindowWidth - 1);
+
+            lock (this)
+                Console.WriteLine(value);
         }
 
         // compose loader
@@ -136,6 +139,10 @@ namespace Lfx {
         public Task<LfxEntry> GetOrLoadEntryAsync(LfxPointer pointer, LfxHash? expectedHash = null) {
             return m_loader.GetOrLoadEntryAsync(pointer, expectedHash);
         }
+        public bool TryGetInfo(Uri url, out LfxInfo info) {
+            return m_loader.TryGetInfo(url, out info);
+        }
+        public string GetUrlHash(Uri url) => m_loader.GetUrlHash(url);
         public IEnumerable<LfxEntry> DiskCache() => m_loader.DiskCache();
         public IEnumerable<LfxEntry> BusCache() => m_loader.BusCache();
         public IEnumerable<LfxEntry> LanCache() => m_loader.LanCache();

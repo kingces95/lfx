@@ -13,6 +13,8 @@ using System.Security.Cryptography;
 using System.Net;
 using System.Reflection;
 using System.Threading.Tasks.Dataflow;
+using System.Diagnostics;
+using System.Management;
 
 namespace Util {
 
@@ -52,8 +54,8 @@ namespace Util {
                 IncludeSubdirectories = true
             };
 
-            // track last file size for each path
-            var fileSizeByPath = new Dictionary<string, long>();
+            var fileLengths = new Dictionary<string, long>(
+                StringComparer.InvariantCultureIgnoreCase);
 
             // report file growth delta
             monitor.InternalBufferSize = 0;
@@ -65,16 +67,19 @@ namespace Util {
                 try {
                     // race to get FileInfo
                     var fileSize = new FileInfo(e.FullPath).Length;
+                    var deletaSize = fileSize;
 
-                    // get and update last file size
-                    long lastFileSize;
-                    lock (fileSizeByPath) {
-                        fileSizeByPath.TryGetValue(filePath, out lastFileSize);
-                        fileSizeByPath[filePath] = fileSize;
+                    // compute delta in file size
+                    lock (fileLengths) {
+                        long previousSize;
+                        if (fileLengths.TryGetValue(filePath, out previousSize))
+                            // file re-created
+                            deletaSize = fileSize - previousSize;
+                        fileLengths[filePath] = fileSize;
                     }
 
                     // report delta in file size!
-                    onGrowth?.Invoke(filePath, fileSize - lastFileSize);
+                    onGrowth?.Invoke(filePath, deletaSize);
 
                 } catch (FileNotFoundException) {
                     // lost race to get FileInfo; E.g. when the windows git-package.exe 
@@ -82,6 +87,20 @@ namespace Util {
                     // deletes. If we get notified and lose the race to read info with
                     // the delete then a FileNotFoundException is raised.
                 }
+            };
+            monitor.Disposed += delegate {
+                var reportedFiles = fileLengths.Keys.ToArray();
+                var files = path.GetAllFiles();
+
+                // unreported files
+                var unreportedFiles = files.Except(reportedFiles).ToArray();
+                foreach (var unreportedFile in unreportedFiles)
+                    onGrowth?.Invoke(unreportedFile, new FileInfo(unreportedFile).Length);
+
+                // deleted files
+                var deletedPaths = reportedFiles.Except(files).ToArray();
+                foreach (var deletedFile in deletedPaths)
+                    onGrowth?.Invoke(deletedFile, -fileLengths[deletedFile]);
             };
 
             return monitor;
@@ -146,7 +165,8 @@ namespace Util {
                         continue;
 
                     // throw if unzipping target is outside of targetDir
-                    var targetPath = IOPath.Combine(targetDir, entry.FullName);
+                    var fullName = Uri.UnescapeDataString(entry.FullName);
+                    var targetPath = IOPath.Combine(targetDir, fullName);
                     if (!targetPath.StartsWith(targetDir))
                         throw new ArgumentException(
                             $"Zip package '{zipFilePath}' entry '{entry.FullName}' is outside package.");
@@ -648,6 +668,7 @@ namespace Util {
             return method != method.GetBaseDefinition();
         }
 
+        // parallel
         public static void ParallelForEach<T>(this IEnumerable<T> source, Action<T> action) {
             Parallel.ForEach(source, action);
         }
@@ -670,6 +691,23 @@ namespace Util {
             // await compleation
             actionBlock.Complete();
             await actionBlock.Completion;
+        }
+
+        // process
+        public static IEnumerable<Process> GetChildren(this Process process) {
+
+            var wmiChildren = new ManagementObjectSearcher(
+                new ObjectQuery($"select * from win32_process where ParentProcessId={process.Id}")
+            ).Get();
+
+            foreach (var wmiChild in wmiChildren) {
+                var childProcessId = Convert.ToInt32(wmiChild["ProcessId"].ToString());
+                var child = Process.GetProcessById(childProcessId);
+                yield return child;
+
+                foreach (var descendent in child.GetChildren())
+                    yield return descendent;
+            }
         }
     }
 }

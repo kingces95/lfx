@@ -19,28 +19,28 @@ namespace Git.Lfx {
     }
 
     public struct LfxProgress {
-        public static LfxProgress Download(string path, long bytes) {
+        public static LfxProgress Download(string path, long? bytes) {
             return new LfxProgress(LfxProgressType.Download, path, bytes);
         }
-        public static LfxProgress Copy(string path, long bytes) {
+        public static LfxProgress Copy(string path, long? bytes) {
             return new LfxProgress(LfxProgressType.Copy, path, bytes);
         }
-        public static LfxProgress Expand(string path, long bytes) {
+        public static LfxProgress Expand(string path, long? bytes) {
             return new LfxProgress(LfxProgressType.Expand, path, bytes);
         }
 
         private readonly LfxProgressType m_type;
         private readonly string m_path;
-        private readonly long m_bytes;
+        private readonly long? m_bytes;
 
-        public LfxProgress(LfxProgressType type, string path, long bytes) {
+        public LfxProgress(LfxProgressType type, string path, long? bytes) {
             m_type = type;
             m_path = path;
             m_bytes = bytes;
         }
 
         public LfxProgressType Type => m_type;
-        public long Bytes => m_bytes;
+        public long? Bytes => m_bytes;
         public string Path => m_path;
 
         public override string ToString() => $"{m_type}, bytes={m_bytes}, path={m_path}";
@@ -165,62 +165,20 @@ namespace Git.Lfx {
             }
             internal string GetTempDownloadPath() => m_busCache.GetTempPath();
 
-            internal IEnumerable<string> DiskCache() => m_diskCache;
-            internal IEnumerable<string> BusCache() => m_busCache;
-            internal IEnumerable<string> LanCache() => m_lanCache;
-
             internal void Clean() {
                 m_diskCache.Clean();
                 m_busCache.Clean();
             }
         }
-        private sealed class LfxUrlToHashCache {
-            private static LfxHash GetUrlHash(Uri url) => LfxHash.Create(url.ToString().ToLower(), Encoding.UTF8);
 
-            private readonly ImmutableDirectory m_busCacheDir;
-            private readonly ImmutableDirectory m_lanCacheDir;
+        private sealed class LfxUrlToInfoCache {
+            public static LfxHash GetUrlHash(Uri url) => LfxHash.Create(url.ToString().ToLower(), Encoding.UTF8);
 
-            internal LfxUrlToHashCache(
-                string busCacheDir,
-                string lanCacheDir) {
-
-                m_busCacheDir = new ImmutableDirectory(busCacheDir, PartitionHash);
-
-                if (lanCacheDir != null)
-                    m_lanCacheDir = new ImmutableDirectory(lanCacheDir, PartitionHash);
-            }
-
-            internal bool TryGetValue(Uri url, out LfxHash hash) {
-
-                hash = default(LfxHash);
-                var urlHash = GetUrlHash(url);
-
-                string hashPath;
-                if (!m_busCacheDir.TryGetPath(urlHash, out hashPath)) {
-
-                    if (m_lanCacheDir?.TryGetPath(urlHash, out hashPath) != true)
-                        return false;
-                }
-
-                hash = LfxHash.Parse(File.ReadAllText(hashPath));
-                    return true;
-            }
-            internal Task PutAsync(Uri url, LfxHash hash) {
-                var urlHash = GetUrlHash(url);
-                return m_busCacheDir.EchoText(urlHash, hash);
-            }
-
-            internal void Clean() {
-                m_busCacheDir.Clean();
-                m_lanCacheDir?.Clean();
-            }
-        }
-        private sealed class LfxInfoCache {
             private readonly ImmutableDirectory m_diskCacheDir;
             private readonly ImmutableDirectory m_busCacheDir;
             private readonly ImmutableDirectory m_lanCacheDir;
 
-            internal LfxInfoCache(
+            internal LfxUrlToInfoCache(
                 string diskCacheDir,
                 string busCacheDir,
                 string lanCacheDir) {
@@ -231,15 +189,16 @@ namespace Git.Lfx {
                     m_lanCacheDir = new ImmutableDirectory(lanCacheDir, PartitionHash);
             }
 
-            internal bool TryGetValue(LfxHash hash, out LfxInfo info) {
+            internal bool TryGetValue(Uri url, out LfxInfo info) {
                 info = default(LfxInfo);
+                var urlHash = GetUrlHash(url);
 
                 string infoPath;
-                if (!m_diskCacheDir.TryGetPath(hash, out infoPath)) {
+                if (!m_diskCacheDir.TryGetPath(urlHash, out infoPath)) {
 
-                    if (!m_busCacheDir.TryGetPath(hash, out infoPath)) {
+                    if (!m_busCacheDir.TryGetPath(urlHash, out infoPath)) {
 
-                        if (m_lanCacheDir?.TryGetPath(hash, out infoPath) != true)
+                        if (m_lanCacheDir?.TryGetPath(urlHash, out infoPath) != true)
                             return false;
                     }
                 }
@@ -247,10 +206,17 @@ namespace Git.Lfx {
                 info = LfxInfo.Load(infoPath);
                 return true;
             }
-            internal async Task PutAsync(LfxHash hash, LfxInfo info) {
-                await m_busCacheDir.EchoText(hash, info.ToString());
-                await m_diskCacheDir.EchoText(hash, info.ToString());
+            internal async Task PutAsync(Uri url, LfxInfo info) {
+                var urlHash = GetUrlHash(url);
+                var infoText = info.ToString();
+
+                await m_busCacheDir.EchoText(urlHash, infoText);
+                await m_diskCacheDir.EchoText(urlHash, infoText);
             }
+
+            internal IEnumerable<string> DiskCache() => m_diskCacheDir;
+            internal IEnumerable<string> BusCache() => m_busCacheDir;
+            internal IEnumerable<string> LanCache() => m_lanCacheDir;
 
             internal void Clean() {
                 m_busCacheDir.Clean();
@@ -283,22 +249,20 @@ namespace Git.Lfx {
             );
 
             // finish
-            onProgress(LfxProgress.Download(targetPath, -1));
+            onProgress(LfxProgress.Download(targetPath, null));
 
             return LfxHash.Create(byteHash);
         }
 
         public const string PointerDirName = "pointers";
-        public const string UrlToHashDirName = "urlToHash";
-        public const string HashToInfoDirName = "hashToInfo";
+        public const string UrlToInfoDirName = "urlToInfo";
         public const string CompressedDirName = "compressed";
         public const string ExpandedDirName = "expanded";
 
         // todo: replace with delegates add/removes
         private readonly ConcurrentDictionary<LfxHash, LfxPointer> m_pointers; 
         private readonly LfxContentCache m_contentCache;
-        private readonly LfxUrlToHashCache m_urlToHashCache;
-        private readonly LfxInfoCache m_infoCache;
+        private readonly LfxUrlToInfoCache m_urlToInfoCache;
 
         public LfxLoader(
             string diskCacheDir,
@@ -310,11 +274,6 @@ namespace Git.Lfx {
                     $"LanCacheDir '{lanCacheDir}' cannot equal BusCacheDir '{busCacheDir}'.");
 
             m_pointers = new ConcurrentDictionary<LfxHash, LfxPointer>();
-
-            m_urlToHashCache = new LfxUrlToHashCache(
-                busCacheDir: busCacheDir.PathCombine(UrlToHashDirName),
-                lanCacheDir: lanCacheDir?.PathCombine(UrlToHashDirName)
-            );
 
             m_contentCache = new LfxContentCache(
                 diskCacheDir: diskCacheDir.PathCombine(ExpandedDirName),
@@ -360,16 +319,16 @@ namespace Git.Lfx {
                     throw new Exception($"Could not expand unreconginzed pointer '{pointer}'.");
 
                 // finished
-                RaiseProgressEvent(LfxProgress.Expand(tempDir, -1));
+                RaiseProgressEvent(LfxProgress.Expand(tempDir, null));
 
                 return compressedPath;
             };
             m_contentCache.OnProgress += RaiseProgressEvent;
 
-            m_infoCache = new LfxInfoCache(
-                diskCacheDir: diskCacheDir.PathCombine(HashToInfoDirName),
-                busCacheDir: busCacheDir.PathCombine(HashToInfoDirName),
-                lanCacheDir: lanCacheDir?.PathCombine(HashToInfoDirName)
+            m_urlToInfoCache = new LfxUrlToInfoCache(
+                diskCacheDir: diskCacheDir.PathCombine(UrlToInfoDirName),
+                busCacheDir: busCacheDir.PathCombine(UrlToInfoDirName),
+                lanCacheDir: lanCacheDir?.PathCombine(UrlToInfoDirName)
             );
         }
 
@@ -381,14 +340,15 @@ namespace Git.Lfx {
 
         // fetch
         public async Task<LfxEntry> GetOrLoadEntryAsync(LfxPointer pointer, LfxHash? expectedHash = null) {
+            LfxInfo info;
             LfxHash hash;
             var url = pointer.Url;
 
             if (expectedHash == null) {
 
-                // discover hash using url?
-                if (m_urlToHashCache.TryGetValue(url, out hash))
-                    return await GetOrLoadEntryAsync(pointer, hash);
+                // discover info using url?
+                if (m_urlToInfoCache.TryGetValue(url, out info))
+                    return await GetOrLoadEntryAsync(pointer, info.Hash);
 
                 // eager download
                 var downloadPath = m_contentCache.GetTempDownloadPath();
@@ -420,12 +380,8 @@ namespace Git.Lfx {
             // get or self-load content
             var contentPath = await m_contentCache.TryGetOrLoadExpandedPathAsync(hash);
 
-            // save url -> hash
-            await m_urlToHashCache.PutAsync(url, hash);
-
             // metadata cached?
-            LfxInfo info;
-            if (!m_infoCache.TryGetValue(hash, out info)) {
+            if (!m_urlToInfoCache.TryGetValue(url, out info)) {
 
                 // get compressed content
                 var compressedPath = await m_contentCache.TryGetOrLoadCompressedPathAsync(hash);
@@ -437,31 +393,31 @@ namespace Git.Lfx {
                 info = LfxInfo.Create(pointer, metadata);
 
                 // cache info
-                await m_infoCache.PutAsync(info.Hash, info);
+                await m_urlToInfoCache.PutAsync(url, info);
             }
 
             return LfxEntry.Create(info, contentPath);
         }
+        public bool TryGetInfo(Uri url, out LfxInfo info) {
+            return m_urlToInfoCache.TryGetValue(url, out info);
+        }
+        public string GetUrlHash(Uri url) => LfxUrlToInfoCache.GetUrlHash(url);
 
         // housekeeping
         public void Clean() {
             m_contentCache.Clean();
-            m_urlToHashCache.Clean();
-            m_infoCache.Clean();
+            m_urlToInfoCache.Clean();
         }
 
         // reflection
         private IEnumerable<LfxEntry> Cache(IEnumerable<string> paths) {
             foreach (var path in paths) {
-                var hash = LfxHash.Parse(path.GetFileName());
-                LfxInfo info;
-                if (!m_infoCache.TryGetValue(hash, out info))
-                    continue;
+                var info = LfxInfo.Load(path);
                 yield return LfxEntry.Create(info, path);
             }
         }
-        public IEnumerable<LfxEntry> DiskCache() => Cache(m_contentCache.DiskCache());
-        public IEnumerable<LfxEntry> BusCache() => Cache(m_contentCache.BusCache());
-        public IEnumerable<LfxEntry> LanCache() => Cache(m_contentCache.LanCache());
+        public IEnumerable<LfxEntry> DiskCache() => Cache(m_urlToInfoCache.DiskCache());
+        public IEnumerable<LfxEntry> BusCache() => Cache(m_urlToInfoCache.BusCache());
+        public IEnumerable<LfxEntry> LanCache() => Cache(m_urlToInfoCache.LanCache());
     }
 }
