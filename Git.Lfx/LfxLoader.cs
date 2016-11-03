@@ -48,9 +48,9 @@ namespace Git.Lfx {
     public delegate void LfxProgressDelegate(LfxProgress progress);
 
     public sealed class LfxLoader {
-        private delegate string LfxDownloadDelegate(LfxHash hash, string targetPath);
-        private delegate Task<string> LfxDownloadAsyncDelegate(LfxHash hash, string targetPath);
-        private delegate Task<string> LfxExpandAsyncDelegate(LfxHash hash, string sourcePath, string targetPath);
+        private delegate string LfxDownloadDelegate(LfxArchiveId hash, string targetPath);
+        private delegate Task<string> LfxDownloadAsyncDelegate(LfxArchiveId hash, string targetPath);
+        private delegate Task<string> LfxExpandAsyncDelegate(LfxContentId id, string sourcePath, string targetPath);
         private sealed class LfxContentCache {
 
             private readonly AsyncSelfLoadingDirectory m_diskCache;
@@ -63,45 +63,47 @@ namespace Git.Lfx {
                 string lanCacheDir = null) {
 
                 if (lanCacheDir != null) {
-                    m_lanCache = new AsyncSelfLoadingDirectory(lanCacheDir, PartitionHash);
+                    m_lanCache = new AsyncSelfLoadingDirectory(lanCacheDir, PartitionArchive);
                 }
 
                 if (busCacheDir != null) {
-                    m_busCache = new AsyncSelfLoadingDirectory(busCacheDir, PartitionHash);
+                    m_busCache = new AsyncSelfLoadingDirectory(busCacheDir, PartitionArchive);
                     m_busCache.OnCopyProgress += (path, bytes) =>
                         RaiseProgressEvent(LfxProgress.Copy(path, bytes));
 
                     // busCache delegates to lanCache, else downloads
-                    m_busCache.OnTryLoadAsync += async (hash, tempPath) => {
+                    m_busCache.OnTryLoadAsync += async (key, tempPath) => {
 
                         // try lan cache
                         string lanCachePath = null;
-                        if (m_lanCache?.TryGetPath(hash, out lanCachePath) == true)
+                        if (m_lanCache?.TryGetPath(key, out lanCachePath) == true)
                             return lanCachePath;
 
                         // download
-                        return await RaiseDownloadEvent(LfxHash.Parse(hash), tempPath);
+                        return await RaiseDownloadEvent(LfxArchiveId.Parse(key), tempPath);
                     };
                 }
 
-                m_diskCache = new AsyncSelfLoadingDirectory(diskCacheDir, PartitionHash);
+                m_diskCache = new AsyncSelfLoadingDirectory(diskCacheDir, PartitionContent);
                 m_diskCache.OnCopyProgress += (path, bytes) =>
                     RaiseProgressEvent(LfxProgress.Copy(path, bytes));
 
                 // diskCache delegates to busCache, then expands
-                m_diskCache.OnTryLoadAsync += async (hash, tempPath) => {
+                m_diskCache.OnTryLoadAsync += async (key, tempPath) => {
+
+                    var contentId = LfxContentId.Parse(key);
 
                     // try bus cache
-                    var busCachePath = await m_busCache.TryGetOrLoadPathAsync(hash);
+                    var busCachePath = await m_busCache.TryGetOrLoadPathAsync(contentId.Hash);
                     if (busCachePath == null)
                         return null;
 
                     // expand
-                    return await RaiseExpandEvent(LfxHash.Parse(hash), busCachePath, tempPath);
+                    return await RaiseExpandEvent(contentId, busCachePath, tempPath);
                 };
             }
 
-            private async Task<string> RaiseDownloadEvent(LfxHash hash, string tempPath) {
+            private async Task<string> RaiseDownloadEvent(LfxArchiveId hash, string tempPath) {
                 if (OnDownloadAsync == null)
                     return null;
 
@@ -129,14 +131,14 @@ namespace Git.Lfx {
 
                 return null;
             }
-            private async Task<string> RaiseExpandEvent(LfxHash hash, string sourcePath, string tempPath) {
+            private async Task<string> RaiseExpandEvent(LfxContentId id, string sourcePath, string tempPath) {
                 if (OnExpandAsync == null)
                     return null;
 
                 foreach (LfxExpandAsyncDelegate expand in
                     OnExpandAsync?.GetInvocationList() ?? Enumerable.Empty<Delegate>()) {
 
-                    var expandedPath = await expand(hash, sourcePath, tempPath);
+                    var expandedPath = await expand(id, sourcePath, tempPath);
                     if (expandedPath == null)
                         continue;
 
@@ -154,14 +156,14 @@ namespace Git.Lfx {
             internal event LfxDownloadAsyncDelegate OnDownloadAsync;
             internal event LfxExpandAsyncDelegate OnExpandAsync;
 
-            internal bool TryGetPath(LfxHash hash, out string path) {
+            internal bool TryGetPath(LfxArchiveId hash, out string path) {
                 return m_diskCache.TryGetPath(hash, out path);
             }
-            internal async Task<string> TryGetOrLoadExpandedPathAsync(LfxHash hash) {
-                return await m_diskCache.TryGetOrLoadPathAsync(hash);
+            internal async Task<string> TryGetOrLoadContentPathAsync(LfxContentId id) {
+                return await m_diskCache.TryGetOrLoadPathAsync(id);
             }
-            internal async Task<string> TryGetOrLoadCompressedPathAsync(LfxHash hash) {
-                return await m_busCache.TryGetOrLoadPathAsync(hash);
+            internal async Task<string> TryGetOrLoadArchivePathAsync(LfxArchiveId id) {
+                return await m_busCache.TryGetOrLoadPathAsync(id);
             }
             internal string GetTempDownloadPath() => m_busCache.GetTempPath();
 
@@ -170,56 +172,79 @@ namespace Git.Lfx {
                 m_busCache.Clean();
             }
         }
+        private sealed class LfxUrlToArchiveIdCache {
+            public static LfxArchiveId GetUrlHash(Uri url) => LfxArchiveId.Create(url.ToString().ToLower(), Encoding.UTF8);
 
-        private sealed class LfxUrlToInfoCache {
-            public static LfxHash GetUrlHash(Uri url) => LfxHash.Create(url.ToString().ToLower(), Encoding.UTF8);
-
-            private readonly ImmutableDirectory m_diskCacheDir;
             private readonly ImmutableDirectory m_busCacheDir;
             private readonly ImmutableDirectory m_lanCacheDir;
 
-            internal LfxUrlToInfoCache(
-                string diskCacheDir,
+            internal LfxUrlToArchiveIdCache(
                 string busCacheDir,
                 string lanCacheDir) {
 
-                m_diskCacheDir = new ImmutableDirectory(diskCacheDir, PartitionHash);
-                m_busCacheDir = new ImmutableDirectory(busCacheDir, PartitionHash);
+                m_busCacheDir = new ImmutableDirectory(busCacheDir, PartitionArchive);
                 if (lanCacheDir != null)
-                    m_lanCacheDir = new ImmutableDirectory(lanCacheDir, PartitionHash);
+                    m_lanCacheDir = new ImmutableDirectory(lanCacheDir, PartitionArchive);
             }
 
-            internal bool TryGetValue(Uri url, out LfxInfo info) {
-                info = default(LfxInfo);
+            internal bool TryGetValue(Uri url, out LfxArchiveId id) {
+                id = default(LfxArchiveId);
                 var urlHash = GetUrlHash(url);
 
-                string infoPath;
-                if (!m_diskCacheDir.TryGetPath(urlHash, out infoPath)) {
+                string idPath;
+                if (!m_busCacheDir.TryGetPath(urlHash, out idPath)) {
 
-                    if (!m_busCacheDir.TryGetPath(urlHash, out infoPath)) {
-
-                        if (m_lanCacheDir?.TryGetPath(urlHash, out infoPath) != true)
-                            return false;
-                    }
+                    if (m_lanCacheDir?.TryGetPath(urlHash, out idPath) != true)
+                        return false;
                 }
 
-                info = LfxInfo.Load(infoPath);
+                id = LfxArchiveId.Load(idPath);
                 return true;
             }
-            internal async Task PutAsync(Uri url, LfxInfo info) {
+            internal async Task PutAsync(Uri url, LfxArchiveId id) {
                 var urlHash = GetUrlHash(url);
-                var infoText = info.ToString();
+                var idText = id.ToString();
 
-                await m_busCacheDir.EchoText(urlHash, infoText);
-                await m_diskCacheDir.EchoText(urlHash, infoText);
+                await m_busCacheDir.EchoText(urlHash, idText);
             }
 
-            internal IEnumerable<string> DiskCache() => m_diskCacheDir;
             internal IEnumerable<string> BusCache() => m_busCacheDir;
             internal IEnumerable<string> LanCache() => m_lanCacheDir;
 
             internal void Clean() {
                 m_busCacheDir.Clean();
+            }
+        }
+        private sealed class LfxContentIdToInfoCache {
+
+            private readonly ImmutableDirectory m_diskCacheDir;
+
+            internal LfxContentIdToInfoCache(
+                string diskCacheDir) {
+
+                m_diskCacheDir = new ImmutableDirectory(diskCacheDir, PartitionContent);
+            }
+
+            internal bool TryGetValue(LfxContentId id, out LfxInfo info) {
+                info = default(LfxInfo);
+
+                string infoPath;
+                if (!m_diskCacheDir.TryGetPath(id, out infoPath))
+                    return false;
+
+                info = LfxInfo.Load(infoPath);
+                return true;
+            }
+            internal async Task PutAsync(LfxContentId id, LfxInfo info) {
+                var idText = id.ToString();
+                var infoText = info.ToString();
+
+                await m_diskCacheDir.EchoText(idText, infoText);
+            }
+
+            internal IEnumerable<string> DiskCache() => m_diskCacheDir;
+
+            internal void Clean() {
                 m_diskCacheDir.Clean();
             }
         }
@@ -228,7 +253,11 @@ namespace Git.Lfx {
         private const int L2PartitionCount = 2;
         private const int MinimumHashLength = L1PartitionCount + L2PartitionCount;
 
-        private static string PartitionHash(string hash) {
+        private static string PartitionContent(string key) {
+            var id = LfxContentId.Parse(key);
+            return Path.Combine(id.Type.ToString(), id.Version.ToString(), PartitionArchive(id.Hash));
+        }
+        private static string PartitionArchive(string hash) {
 
             if (hash.Length < MinimumHashLength)
                 throw new ArgumentException(
@@ -240,7 +269,7 @@ namespace Git.Lfx {
                 hash
             );
         }
-        private static async Task<LfxHash> DownloadAsync(Uri url, string targetPath, Action<LfxProgress> onProgress) {
+        private static async Task<LfxArchiveId> DownloadAsync(Uri url, string targetPath, Action<LfxProgress> onProgress) {
 
             var byteHash = await url.DownloadAndHash(
                 tempPath: targetPath,
@@ -251,18 +280,19 @@ namespace Git.Lfx {
             // finish
             onProgress(LfxProgress.Download(targetPath, null));
 
-            return LfxHash.Create(byteHash);
+            return LfxArchiveId.Create(byteHash);
         }
 
-        public const string PointerDirName = "pointers";
-        public const string UrlToInfoDirName = "urlToInfo";
-        public const string CompressedDirName = "compressed";
-        public const string ExpandedDirName = "expanded";
+        public const string UrlHashToArchiveIdDirName = "urlHashToArchiveId";
+        public const string ContentIdToInfo = "contentIdToInfo";
+        public const string CompressedDirName = "archive";
+        public const string ExpandedDirName = "content";
 
-        // todo: replace with delegates add/removes
-        private readonly ConcurrentDictionary<LfxHash, LfxPointer> m_pointers; 
+        private readonly ConcurrentDictionary<LfxArchiveId, Uri> m_knownArchives;
+        private readonly ConcurrentDictionary<LfxContentId, LfxPointer> m_knownContent;
         private readonly LfxContentCache m_contentCache;
-        private readonly LfxUrlToInfoCache m_urlToInfoCache;
+        private readonly LfxUrlToArchiveIdCache m_urlToArchiveIdCache;
+        private readonly LfxContentIdToInfoCache m_contentIdToInfoCache;
 
         public LfxLoader(
             string diskCacheDir,
@@ -273,40 +303,40 @@ namespace Git.Lfx {
                 throw new ArgumentNullException( // LanCacheDir is readonly
                     $"LanCacheDir '{lanCacheDir}' cannot equal BusCacheDir '{busCacheDir}'.");
 
-            m_pointers = new ConcurrentDictionary<LfxHash, LfxPointer>();
+            m_knownArchives = new ConcurrentDictionary<LfxArchiveId, Uri>();
+            m_knownContent = new ConcurrentDictionary<LfxContentId, LfxPointer>();
 
             m_contentCache = new LfxContentCache(
                 diskCacheDir: diskCacheDir.PathCombine(ExpandedDirName),
                 busCacheDir: busCacheDir.PathCombine(CompressedDirName),
                 lanCacheDir: lanCacheDir?.PathCombine(CompressedDirName)
             );
-            m_contentCache.OnDownloadAsync += async (expectedHash, targetPath) => {
+            m_contentCache.OnDownloadAsync += async (archiveId, targetPath) => {
 
                 // lookup pointer
-                var pointer = m_pointers[expectedHash];
-                var url = pointer.Url;
+                var url = m_knownArchives[archiveId];
 
                 // download!
-                var downloadHash = await DownloadAsync(url, targetPath, RaiseProgressEvent);
+                var downloadId = await DownloadAsync(url, targetPath, RaiseProgressEvent);
 
                 // verify hash
-                if (expectedHash != null && expectedHash != downloadHash)
+                if (archiveId != null && archiveId != downloadId)
                     throw new Exception(
-                        $"Downloaded url '{url}' content hash '{downloadHash}' " +
-                        $"is different than expected hash '{expectedHash}'.");
+                        $"Downloaded url '{url}' content hash '{downloadId}' " +
+                        $"is different than expected hash '{archiveId}'.");
 
                 return targetPath;
             };
-            m_contentCache.OnExpandAsync += async (hash, compressedPath, tempDir) => {
+            m_contentCache.OnExpandAsync += async (id, compressedPath, tempDir) => {
 
-                var pointer = m_pointers[hash];
+                var pointer = m_knownContent[id];
 
                 // cache file
                 if (pointer.IsFile)
                     return compressedPath;
 
                 // expand zip
-                if (pointer.IsZip)
+                if (pointer.IsZip || pointer.IsNuget)
                     compressedPath = await compressedPath.ExpandZip(tempDir, bytes =>
                         RaiseProgressEvent(LfxProgress.Expand(tempDir, bytes)));
 
@@ -325,10 +355,13 @@ namespace Git.Lfx {
             };
             m_contentCache.OnProgress += RaiseProgressEvent;
 
-            m_urlToInfoCache = new LfxUrlToInfoCache(
-                diskCacheDir: diskCacheDir.PathCombine(UrlToInfoDirName),
-                busCacheDir: busCacheDir.PathCombine(UrlToInfoDirName),
-                lanCacheDir: lanCacheDir?.PathCombine(UrlToInfoDirName)
+            m_contentIdToInfoCache = new LfxContentIdToInfoCache(
+                diskCacheDir.PathCombine(ContentIdToInfo)
+            );
+
+            m_urlToArchiveIdCache = new LfxUrlToArchiveIdCache(
+                busCacheDir: busCacheDir.PathCombine(UrlHashToArchiveIdDirName),
+                lanCacheDir: lanCacheDir?.PathCombine(UrlHashToArchiveIdDirName)
             );
         }
 
@@ -339,74 +372,99 @@ namespace Git.Lfx {
         public event LfxProgressDelegate OnProgress;
 
         // fetch
-        public async Task<LfxEntry> GetOrLoadEntryAsync(LfxPointer pointer, LfxHash? expectedHash = null) {
+        public async Task<LfxEntry> GetOrLoadEntryAsync(LfxPointer pointer, LfxArchiveId? expectedArchiveId = null) {
             LfxInfo info;
-            LfxHash hash;
+            LfxArchiveId archiveId;
             var url = pointer.Url;
 
-            if (expectedHash == null) {
+            if (expectedArchiveId == null) {
 
-                // discover info using url?
-                if (m_urlToInfoCache.TryGetValue(url, out info))
-                    return await GetOrLoadEntryAsync(pointer, info.Hash);
+                // discover archiveId using url?
+                LfxArchiveId _archiveId;
+                if (m_urlToArchiveIdCache.TryGetValue(url, out _archiveId))
+                    return await GetOrLoadEntryAsync(pointer, _archiveId);
 
                 // eager download
                 var downloadPath = m_contentCache.GetTempDownloadPath();
-                hash = await DownloadAsync(url, downloadPath, RaiseProgressEvent);
+                archiveId = await DownloadAsync(url, downloadPath, RaiseProgressEvent);
 
                 // prevent self-loading cache from re-downloading content
                 LfxDownloadDelegate downloadDelegate = null;
                 m_contentCache.OnDownload += downloadDelegate = (_expectedHash, _downloadPath) => {
 
                     // return freshly downloaded content for this hash
-                    if (_expectedHash == hash)
+                    if (_expectedHash == archiveId)
                         return downloadPath;
 
                     return null;
                 };
 
                 try {
-                    return await GetOrLoadEntryAsync(pointer, hash);
+                    return await GetOrLoadEntryAsync(pointer, archiveId);
                 } finally {
                     m_contentCache.OnDownload -= downloadDelegate;
                 }
             }
 
-            hash = expectedHash.Value;
+            archiveId = expectedArchiveId.Value;
+            var contentId = new LfxContentId(pointer.Type, pointer.Version, archiveId);
 
             // register hash -> pointer
-            m_pointers.GetOrAdd(hash, pointer);
+            m_knownArchives.GetOrAdd(archiveId, pointer.Url);
+            m_knownContent.GetOrAdd(contentId, pointer);
 
             // get or self-load content
-            var contentPath = await m_contentCache.TryGetOrLoadExpandedPathAsync(hash);
+            var contentPath = await m_contentCache.TryGetOrLoadContentPathAsync(contentId);
 
             // metadata cached?
-            if (!m_urlToInfoCache.TryGetValue(url, out info)) {
+            if (!m_contentIdToInfoCache.TryGetValue(contentId, out info)) {
 
                 // get compressed content
-                var compressedPath = await m_contentCache.TryGetOrLoadCompressedPathAsync(hash);
+                var compressedPath = await m_contentCache.TryGetOrLoadArchivePathAsync(archiveId);
 
                 // compute metadata
-                var metadata = LfxMetadata.Create(hash, contentPath, compressedPath);
+                var metadata = LfxMetadata.Create(archiveId, contentPath, compressedPath);
 
                 // create info
                 info = LfxInfo.Create(pointer, metadata);
 
                 // cache info
-                await m_urlToInfoCache.PutAsync(url, info);
+                await m_contentIdToInfoCache.PutAsync(contentId, info);
             }
 
             return LfxEntry.Create(info, contentPath);
         }
-        public bool TryGetInfo(Uri url, out LfxInfo info) {
-            return m_urlToInfoCache.TryGetValue(url, out info);
+        public IEnumerable<LfxInfo> GetInfos(Uri url) {
+            // a url maps 1-1 to a hash of its content
+            LfxArchiveId archiveId;
+            if (!m_urlToArchiveIdCache.TryGetValue(url, out archiveId))
+                yield break;
+
+            // content maps 1-n in the different types of ways it might be expanded
+            var types = new[] {
+                LfxPointerType.File,
+                LfxPointerType.Zip,
+                LfxPointerType.Exe,
+                LfxPointerType.Nuget,
+            };
+
+            var versions = Enumerable.Range(1, 1);
+
+            foreach (var version in versions) {
+                foreach (var type in types) {
+                    LfxInfo info;
+                    var contentId = new LfxContentId(type, version, archiveId);
+                    if (m_contentIdToInfoCache.TryGetValue(contentId, out info))
+                        yield return info;
+                }
+            }
         }
-        public string GetUrlHash(Uri url) => LfxUrlToInfoCache.GetUrlHash(url);
+        public string GetUrlHash(Uri url) => LfxUrlToArchiveIdCache.GetUrlHash(url);
 
         // housekeeping
         public void Clean() {
             m_contentCache.Clean();
-            m_urlToInfoCache.Clean();
+            m_urlToArchiveIdCache.Clean();
         }
 
         // reflection
@@ -416,8 +474,13 @@ namespace Git.Lfx {
                 yield return LfxEntry.Create(info, path);
             }
         }
-        public IEnumerable<LfxEntry> DiskCache() => Cache(m_urlToInfoCache.DiskCache());
-        public IEnumerable<LfxEntry> BusCache() => Cache(m_urlToInfoCache.BusCache());
-        public IEnumerable<LfxEntry> LanCache() => Cache(m_urlToInfoCache.LanCache());
+        public IEnumerable<LfxEntry> DiskCache() {
+            foreach (var path in m_contentIdToInfoCache.DiskCache()) {
+                var info = LfxInfo.Load(path);
+                yield return LfxEntry.Create(info, path);
+            }
+        }
+        public IEnumerable<LfxEntry> BusCache() => Cache(m_urlToArchiveIdCache.BusCache());
+        public IEnumerable<LfxEntry> LanCache() => Cache(m_urlToArchiveIdCache.LanCache());
     }
 }

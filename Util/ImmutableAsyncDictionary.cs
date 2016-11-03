@@ -259,7 +259,7 @@ namespace Util {
     /// called once even if multipule threads race to load the same content. The losers 
     /// block until the winner loads the content.
     /// </summary>
-    public delegate Task<string> LoadFileAsyncDelegate(string hash, string tempPath);
+    public delegate Task<string> LoadFileAsyncDelegate(string key, string tempPath);
     public sealed class AsyncSelfLoadingDirectory : IEnumerable<string> {
         private readonly AsyncSelfLoadingDictionary<string, string> m_dictionary;
         private readonly ImmutableDirectory m_directory;
@@ -273,14 +273,14 @@ namespace Util {
             m_directory.OnCopyProgress += (path, progress) => OnCopyProgress?.Invoke(path, progress);
         }
 
-        private async Task<string> RaiseTryAsyncLoadEvent(string hash, string tempPath) {
+        private async Task<string> RaiseTryAsyncLoadEvent(string key, string tempPath) {
             if (OnTryLoadAsync == null)
                 return null;
 
             foreach (LoadFileAsyncDelegate o in 
                 OnTryLoadAsync?.GetInvocationList() ?? Enumerable.Empty<Delegate>()) {
 
-                var resultPath = await o(hash, tempPath);
+                var resultPath = await o(key, tempPath);
                 if (resultPath == null)
                     continue;
 
@@ -290,22 +290,22 @@ namespace Util {
             return null;
         }
 
-        private bool TryLoadHandler(string hash, out string path) {
-            return m_directory.TryGetPath(hash, out path);
+        private bool TryLoadHandler(string key, out string path) {
+            return m_directory.TryGetPath(key, out path);
         }
-        private async Task<KeyValuePair<bool, string>> TryLoadAsyncHandler(string hash) {
+        private async Task<KeyValuePair<bool, string>> TryLoadAsyncHandler(string key) {
 
-            // async load content given hash
-            var path = await RaiseTryAsyncLoadEvent(hash, GetTempPath());
+            // async load content given key
+            var path = await RaiseTryAsyncLoadEvent(key, GetTempPath());
             if (path == null)
                 return new KeyValuePair<bool, string>(false, default(string));
 
-            // cache content to disk by hash
+            // cache content to disk by key
             var contentPath = path.IsSubDirOf(TempDir) ?
-                await m_directory.Move(path, hash) :
-                await m_directory.Copy(path, hash, preferAlias: true);
+                await m_directory.Move(path, key) :
+                await m_directory.Copy(path, key, preferAlias: true);
 
-            // cache content in memory by hash
+            // cache content in memory by key
             return new KeyValuePair<bool, string>(true, contentPath);
         }
 
@@ -316,11 +316,11 @@ namespace Util {
         public event Action<string, long> OnCopyProgress;
         public event LoadFileAsyncDelegate OnTryLoadAsync;
 
-        public bool TryGetPath(string hash, out string path) {
-            return m_dictionary.TryGetValue(hash, out path);
+        public bool TryGetPath(string key, out string path) {
+            return m_dictionary.TryGetValue(key, out path);
         }
-        public async Task<string> TryGetOrLoadPathAsync(string hash) {
-            var result = await m_dictionary.TryGetOrLoadValueAsync(hash);
+        public async Task<string> TryGetOrLoadPathAsync(string key) {
+            var result = await m_dictionary.TryGetOrLoadValueAsync(key);
 
             // unpackage result
             if (!result.Key)

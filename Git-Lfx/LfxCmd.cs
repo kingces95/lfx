@@ -13,14 +13,13 @@ namespace Lfx {
 
     public enum LfxCmdSwitches {
         Quite, Q,
-        Exe,
-        Zip,
+        Exe, Zip, Nuget,
         Clean,
         Clear,
         Force, F,
         Verbose, V,
         Hash,
-        Disk, Bus, Lan
+        Disk, Bus, Lan,
     }
 
     public sealed class LfxCmd {
@@ -112,11 +111,13 @@ namespace Lfx {
             Log("    -q, --quite                        Suppress progress reporting.");
             Log("    --zip                              Url points to zip archive.");
             Log("    --exe                              Url points to self expanding archive. Use '{0}' in <exeCmd> for target directory.");
+            Log("    --nuget                            Url points to nuget package.");
             Log();
             Log("Fetch <url> [<exeCmd>]             Fetch content and echo poitner.");
             Log("    -q, --quite                        Suppress progress reporting.");
             Log("    --zip                              Url points to zip archive.");
             Log("    --exe                              Url points to self expanding archive. Use '{0}' in <cmd> for target directory.");
+            Log("    --nuget                            Url points to nuget package.");
             Log();
             Log("Show <url>                         Show cached poitner for url.");
             Log("    --hash                             Just show the hash for the url.");
@@ -174,11 +175,11 @@ namespace Lfx {
             }
 
             // dump
-            var header = $"{"Type",-4}  {"Hash",-8}  {"Compressed",-10}  {"Expanded",-8}  {"Url_Hash",-8}  {"Url"} {"[Args]"}";
+            var header = $"{"Type",-5}  {"Hash",-8}  {"Compressed",-10}  {"Expanded",-8}  {"Url_Hash",-8}  {"Url"} {"[Args]"}";
             Log(header.Replace("_", " "));
             Log(Regex.Replace(header, @"[^\s]", "-"));
             var entries =
-                from entry in m_env.BusCache()
+                from entry in m_env.DiskCache()
                 let info = entry.Info
                 orderby info.Url.ToString()
                 select info;
@@ -189,9 +190,11 @@ namespace Lfx {
                 var fileSize = $"{o.Size.ToFileSize()}";
                 var contentSize = $"{o.ContentSize.ToFileSize()}";
 
-                Log($"{type,-4}  {hash,8}  {fileSize,10}  {contentSize,8}  {urlHash,8}  {o.Url} {o.Args}");
+                Log($"{type,-5}  {hash,8}  {fileSize,10}  {contentSize,8}  {urlHash,8}  {o.Url} {o.Args}");
             }
-            Log($"{entries.Count(), 15} File(s) {entries.Sum(o => o.ContentSize).ToFileSize(), 10} Bytes");
+            var totalContentSize = entries.Sum(o => o.ContentSize);
+            var totalArchiveSize = entries.Sum(o => o.Size);
+            Log($"{entries.Count(), 15} File(s) {totalContentSize.ToFileSize(), 8} Bytes, {totalArchiveSize.ToFileSize(), 8} Compressed Bytes");
         }
 
         public Task Pull() {
@@ -225,6 +228,7 @@ namespace Lfx {
             var isQuiet = args.IsSet(LfxCmdSwitches.Quite | LfxCmdSwitches.Q);
             var isExe = args.IsSet(LfxCmdSwitches.Exe);
             var isZip = args.IsSet(LfxCmdSwitches.Zip);
+            var isNuget = args.IsSet(LfxCmdSwitches.Nuget);
 
             // get args
             var url = new Uri(args[urlArgIndex]);
@@ -234,6 +238,7 @@ namespace Lfx {
             var pointer =
                 isExe ? LfxPointer.CreateExe(url, exeArgs) :
                 isZip ? LfxPointer.CreateZip(url) :
+                isNuget ? LfxPointer.CreateNuget(url) :
                 LfxPointer.CreateFile(url);
 
             // log progress
@@ -290,11 +295,11 @@ namespace Lfx {
             }
 
             // try get info
-            LfxInfo info;
-            if (!m_env.TryGetInfo(url, out info))
+            var infos = m_env.GetInfos(url).ToArray();
+            if (!infos.Any())
                 throw new ArgumentException($"No pointer cached for url '{url}'.");
 
-            Log(info.ToString());
+            Log(string.Join(Environment.NewLine + Environment.NewLine, infos.ToArray()));
         }
 
         public async Task Checkout() {

@@ -40,7 +40,7 @@ namespace Lfx {
         public bool IsFile => Info.IsFile;
         public int Version => Info.Version;
         public Uri Url => Info.Url;
-        public LfxHash Hash => Info.Hash;
+        public LfxArchiveId Hash => Info.Hash;
         public string Args => Info.Args;
         public long Size => Info.Size;
         public long? ContentSize => Info.ExpandedSize;
@@ -136,11 +136,11 @@ namespace Lfx {
 
             return GetOrLoadEntryAsync(info.Pointer, info.Hash);
         }
-        public Task<LfxEntry> GetOrLoadEntryAsync(LfxPointer pointer, LfxHash? expectedHash = null) {
+        public Task<LfxEntry> GetOrLoadEntryAsync(LfxPointer pointer, LfxArchiveId? expectedHash = null) {
             return m_loader.GetOrLoadEntryAsync(pointer, expectedHash);
         }
-        public bool TryGetInfo(Uri url, out LfxInfo info) {
-            return m_loader.TryGetInfo(url, out info);
+        public IEnumerable<LfxInfo> GetInfos(Uri url) {
+            return m_loader.GetInfos(url);
         }
         public string GetUrlHash(Uri url) => m_loader.GetUrlHash(url);
         public IEnumerable<LfxEntry> DiskCache() => m_loader.DiskCache();
