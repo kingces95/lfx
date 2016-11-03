@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Reflection;
 
 namespace Git.Lfx {
 
@@ -336,9 +337,16 @@ namespace Git.Lfx {
                     return compressedPath;
 
                 // expand zip
-                if (pointer.IsZip || pointer.IsNuget)
+                if (pointer.IsZip || pointer.IsNuget) {
                     compressedPath = await compressedPath.ExpandZip(tempDir, bytes =>
                         RaiseProgressEvent(LfxProgress.Expand(tempDir, bytes)));
+
+                    // nuget shims
+                    if (pointer.IsNuget) {
+                        WriteResource($"nuget.v{pointer.Version}", "shim.targets", tempDir);
+                        WriteResource($"nuget.v{pointer.Version}", "shim.props", tempDir);
+                    }
+                }
 
                 // expand exe
                 else if (pointer.IsExe)
@@ -363,6 +371,14 @@ namespace Git.Lfx {
                 busCacheDir: busCacheDir.PathCombine(UrlHashToArchiveIdDirName),
                 lanCacheDir: lanCacheDir?.PathCombine(UrlHashToArchiveIdDirName)
             );
+        }
+
+        private void WriteResource(string resourcePath, string resourceName, string targetDir) {
+            var assembly = Assembly.GetExecutingAssembly();
+            var resourceId = $"{GetType().Namespace}.resources.{resourcePath}.{resourceName}";
+            using (var stream = assembly.GetManifestResourceStream(resourceId))
+                using (var sw = File.Open(Path.Combine(targetDir, resourceName), FileMode.CreateNew))
+                    stream.CopyTo(sw);
         }
 
         // events
