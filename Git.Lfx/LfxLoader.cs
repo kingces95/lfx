@@ -8,6 +8,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Reflection;
+using System.Net;
 
 namespace Git.Lfx {
 
@@ -20,31 +21,34 @@ namespace Git.Lfx {
     }
 
     public struct LfxProgress {
-        public static LfxProgress Download(string path, long? bytes) {
-            return new LfxProgress(LfxProgressType.Download, path, bytes);
+        public static LfxProgress Download(Uri sourceUrl, string targetPath, long? bytes) {
+            return new LfxProgress(LfxProgressType.Download, sourceUrl.ToString(), targetPath, bytes);
         }
-        public static LfxProgress Copy(string path, long? bytes) {
-            return new LfxProgress(LfxProgressType.Copy, path, bytes);
+        public static LfxProgress Copy(string sourcePath, string targetPath, long? bytes) {
+            return new LfxProgress(LfxProgressType.Copy, sourcePath, targetPath, bytes);
         }
-        public static LfxProgress Expand(string path, long? bytes) {
-            return new LfxProgress(LfxProgressType.Expand, path, bytes);
+        public static LfxProgress Expand(string sourcePath, string targetPath, long? bytes) {
+            return new LfxProgress(LfxProgressType.Expand, sourcePath, targetPath, bytes);
         }
 
         private readonly LfxProgressType m_type;
-        private readonly string m_path;
+        private readonly string m_targetPath;
+        private readonly string m_sourcePath;
         private readonly long? m_bytes;
 
-        public LfxProgress(LfxProgressType type, string path, long? bytes) {
+        public LfxProgress(LfxProgressType type, string sourcePath, string targetPath, long? bytes) {
             m_type = type;
-            m_path = path;
+            m_targetPath = targetPath;
+            m_sourcePath = sourcePath;
             m_bytes = bytes;
         }
 
         public LfxProgressType Type => m_type;
         public long? Bytes => m_bytes;
-        public string Path => m_path;
+        public string TargetPath => m_targetPath;
+        public string SourcePath => m_sourcePath;
 
-        public override string ToString() => $"{m_type}, bytes={m_bytes}, path={m_path}";
+        public override string ToString() => $"{m_type}, bytes={m_bytes}: {m_sourcePath} => {m_targetPath}";
     }
     public delegate void LfxProgressDelegate(LfxProgress progress);
 
@@ -69,8 +73,8 @@ namespace Git.Lfx {
 
                 if (busCacheDir != null) {
                     m_busCache = new AsyncSelfLoadingDirectory(busCacheDir, PartitionArchive);
-                    m_busCache.OnCopyProgress += (path, bytes) =>
-                        RaiseProgressEvent(LfxProgress.Copy(path, bytes));
+                    m_busCache.OnCopyProgress += (sourcePath, targetPath, bytes) =>
+                        RaiseProgressEvent(LfxProgress.Copy(sourcePath, targetPath, bytes));
 
                     // busCache delegates to lanCache, else downloads
                     m_busCache.OnTryLoadAsync += async (key, tempPath) => {
@@ -86,8 +90,8 @@ namespace Git.Lfx {
                 }
 
                 m_diskCache = new AsyncSelfLoadingDirectory(diskCacheDir, PartitionContent);
-                m_diskCache.OnCopyProgress += (path, bytes) =>
-                    RaiseProgressEvent(LfxProgress.Copy(path, bytes));
+                m_diskCache.OnCopyProgress += (sourcePath, targetPath, bytes) =>
+                    RaiseProgressEvent(LfxProgress.Copy(sourcePath, targetPath, bytes));
 
                 // diskCache delegates to busCache, then expands
                 m_diskCache.OnTryLoadAsync += async (key, tempPath) => {
@@ -272,16 +276,21 @@ namespace Git.Lfx {
         }
         private static async Task<LfxArchiveId> DownloadAsync(Uri url, string targetPath, Action<LfxProgress> onProgress) {
 
-            var byteHash = await url.DownloadAndHash(
-                tempPath: targetPath,
-                onProgress: progress => 
-                    onProgress(LfxProgress.Download(targetPath, progress))
-            );
+            try {
+                var byteHash = await url.DownloadAndHash(
+                    tempPath: targetPath,
+                    onProgress: progress =>
+                        onProgress(LfxProgress.Download(url, targetPath, progress))
+                );
 
-            // finish
-            onProgress(LfxProgress.Download(targetPath, null));
+                // finish
+                onProgress(LfxProgress.Download(url, targetPath, null));
 
-            return LfxArchiveId.Create(byteHash);
+                return LfxArchiveId.Create(byteHash);
+
+            } catch (WebException e) {
+                throw new WebException($"Failed to download {url}.", e);
+            }
         }
 
         public const string UrlHashToArchiveIdDirName = "urlHashToArchiveId";
@@ -338,8 +347,8 @@ namespace Git.Lfx {
 
                 // expand zip
                 if (pointer.IsZip || pointer.IsNuget) {
-                    compressedPath = await compressedPath.ExpandZip(tempDir, bytes =>
-                        RaiseProgressEvent(LfxProgress.Expand(tempDir, bytes)));
+                    await compressedPath.ExpandZip(tempDir, bytes =>
+                        RaiseProgressEvent(LfxProgress.Expand(compressedPath, tempDir, bytes)));
 
                     // nuget shims
                     if (pointer.IsNuget) {
@@ -350,16 +359,16 @@ namespace Git.Lfx {
 
                 // expand exe
                 else if (pointer.IsExe)
-                    compressedPath = await compressedPath.ExpandExe(tempDir, pointer.Args, bytes =>
-                        RaiseProgressEvent(LfxProgress.Expand(tempDir, bytes)));
+                    await compressedPath.ExpandExe(tempDir, pointer.Args, bytes =>
+                        RaiseProgressEvent(LfxProgress.Expand(compressedPath, tempDir, bytes)));
 
                 else
                     throw new Exception($"Could not expand unreconginzed pointer '{pointer}'.");
 
                 // finished
-                RaiseProgressEvent(LfxProgress.Expand(tempDir, null));
+                RaiseProgressEvent(LfxProgress.Expand(compressedPath, tempDir, null));
 
-                return compressedPath;
+                return tempDir;
             };
             m_contentCache.OnProgress += RaiseProgressEvent;
 
@@ -370,7 +379,7 @@ namespace Git.Lfx {
             m_urlToArchiveIdCache = new LfxUrlToArchiveIdCache(
                 busCacheDir: busCacheDir.PathCombine(UrlHashToArchiveIdDirName),
                 lanCacheDir: lanCacheDir?.PathCombine(UrlHashToArchiveIdDirName)
-            );
+            );  
         }
 
         private void WriteResource(string resourcePath, string resourceName, string targetDir) {

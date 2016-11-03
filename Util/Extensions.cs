@@ -675,13 +675,13 @@ namespace Util {
         public static async Task ParallelForEachAsync<T>(this IEnumerable<T> source, Action<T> action) {
             await Task.Run(() => source.ParallelForEach(action));
         }
-        public static async Task ParallelForEachAsync<T>(this IEnumerable<T> source, Func<T, Task> action) {
+        public static async Task ParallelForEachAsync<T>(this IEnumerable<T> source, Func<T, Task> action, int? maxDegreeOfParallelism = null) {
 
             // checkout
             var actionBlock = new ActionBlock<T>(
                 action: async o => await action(o), 
                 dataflowBlockOptions: new ExecutionDataflowBlockOptions {
-                    MaxDegreeOfParallelism = Environment.ProcessorCount
+                    MaxDegreeOfParallelism = maxDegreeOfParallelism ?? Environment.ProcessorCount
                 });
 
             // go!

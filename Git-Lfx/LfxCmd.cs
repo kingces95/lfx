@@ -18,6 +18,7 @@ namespace Lfx {
         Clear,
         Force, F,
         Verbose, V,
+        Serial,
         Hash,
         Disk, Bus, Lan,
     }
@@ -78,7 +79,10 @@ namespace Lfx {
             return GitCmdArgs.Parse(m_commandLine, minArgs, maxArgs, switchInfo);
         }
         private void Log(object value = null) => m_env.Log(value);
-        private void Log(Exception e) {
+        private void Log(Exception e, string indent = "") {
+            if (e == null)
+                return;
+
             while (e is TargetInvocationException)
                 e = e.InnerException;
 
@@ -89,7 +93,8 @@ namespace Lfx {
                 return;
             }
 
-            Log($"{e.GetType()}: {e.Message}");
+            Log($"{indent}{e.GetType()}: {e.Message}");
+            Log(e.InnerException, indent + "  ");
         }
         private LfxProgressTracker LogProgress(bool verbose = false) {
             var progress = new LfxProgressTracker(m_env, verbose);
@@ -106,6 +111,7 @@ namespace Lfx {
             Log("Checkout                           Sync content in lfx directory using pointers in .lfx directory.");
             Log("    -q, --quite                        Suppress progress reporting.");
             Log("    -v, --verbose                      Log diagnostic information.");
+            Log("    --serial                           Download, copy, and/or expand each pointer serially.");
             Log();
             Log("Pull <path> <url> [<exeCmd>]       Pull content to path in 'lfx' and add corrisponding pointer to '.lfx'.");
             Log("    -q, --quite                        Suppress progress reporting.");
@@ -310,7 +316,8 @@ namespace Lfx {
                 maxArgs: 0,
                 switchInfo: GitCmdSwitchInfo.Create(
                     LfxCmdSwitches.Quite, LfxCmdSwitches.Q,
-                    LfxCmdSwitches.Verbose, LfxCmdSwitches.V
+                    LfxCmdSwitches.Verbose, LfxCmdSwitches.V,
+                    LfxCmdSwitches.Serial
                )
             );
 
@@ -320,6 +327,7 @@ namespace Lfx {
             // log progress
             var isQuiet = args.IsSet(LfxCmdSwitches.Q, LfxCmdSwitches.Quite);
             var isVerbose = args.IsSet(LfxCmdSwitches.V, LfxCmdSwitches.Verbose);
+            var isSerial = args.IsSet(LfxCmdSwitches.Serial);
             LfxProgressTracker progress = null;
             Task progressTask = Task.FromResult(true);
 
@@ -339,7 +347,7 @@ namespace Lfx {
                 // update repo info file with metadata
                 if (repoInfo.Info != cacheEntry.Info)
                     infoPath.WriteAllText(cacheEntry.Info.ToString());
-            });
+            }, maxDegreeOfParallelism: isSerial ? (int?)1 : null);
 
             await restoreTask.JoinWith(progressTask);
 

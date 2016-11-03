@@ -33,7 +33,7 @@ namespace Lfx {
 
             private readonly LfxEnv m_env;
             private readonly LfxProgressType m_type;
-            private HashSet<string> m_paths;
+            private HashSet<string> m_targetPaths;
             private bool m_verbose;
             private long m_bytesTotal;
             private long m_bytesProgress;
@@ -44,7 +44,7 @@ namespace Lfx {
                 m_env = env;
                 m_type = type;
                 m_verbose = verbose;
-                m_paths = new HashSet<string>();
+                m_targetPaths = new HashSet<string>();
             }
 
             private void Log(object obj) {
@@ -55,15 +55,16 @@ namespace Lfx {
             }
             private void LogProgress(LfxProgress progress) {
 
-                var path = progress.Path;
+                var sourcePath = progress.SourcePath;
+                var targetPath = progress.TargetPath;
                 lock (this) {
-                    if (!m_paths.Contains(path)) {
-                        m_paths.Add(path);
-                        Log($"Begin {Type}: {path}");
+                    if (!m_targetPaths.Contains(targetPath)) {
+                        m_targetPaths.Add(targetPath);
+                        Log($"Start {Type}: {sourcePath}");
                     }
 
                     if (progress.Bytes == null) 
-                        Log($"End {Type}: {path}");
+                        Log($"End   {Type}: {sourcePath}");
                 }
             }
 

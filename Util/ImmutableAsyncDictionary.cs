@@ -106,6 +106,8 @@ namespace Util {
         IDisposable,
         IEnumerable<string> {
 
+        public delegate void ProgressDelegate(string sourcePath, string targetPath, long bytes);
+
         private const string LockFileName = ".lock";
         private const string TempDirName = ".temp";
 
@@ -177,7 +179,7 @@ namespace Util {
                 var tempPath = GetTempPath();
                 stagingPath = await sourcePath.CopyPathToAsync(
                     target: tempPath, 
-                    onProgress: progress => OnCopyProgress(tempPath, progress)
+                    onProgress: progress => OnCopyProgress(sourcePath, tempPath, progress)
                 );
             }
 
@@ -194,7 +196,7 @@ namespace Util {
             return path;
         }
 
-        public event Action<string, long> OnCopyProgress;
+        public event ProgressDelegate OnCopyProgress;
 
         public string Dir => m_dir;
         public string TempDir => m_tempDir.ToString();
@@ -261,6 +263,9 @@ namespace Util {
     /// </summary>
     public delegate Task<string> LoadFileAsyncDelegate(string key, string tempPath);
     public sealed class AsyncSelfLoadingDirectory : IEnumerable<string> {
+
+        public delegate void ProgressDelegate(string sourcePath, string targetPath, long bytes);
+
         private readonly AsyncSelfLoadingDictionary<string, string> m_dictionary;
         private readonly ImmutableDirectory m_directory;
 
@@ -270,7 +275,8 @@ namespace Util {
             m_dictionary.OnTryLoadAsync += TryLoadAsyncHandler;
 
             m_directory = new ImmutableDirectory(dir, keyToCachePath);
-            m_directory.OnCopyProgress += (path, progress) => OnCopyProgress?.Invoke(path, progress);
+            m_directory.OnCopyProgress += (sourcePath, targetPath, progress) => 
+                OnCopyProgress?.Invoke(sourcePath, targetPath, progress);
         }
 
         private async Task<string> RaiseTryAsyncLoadEvent(string key, string tempPath) {
@@ -313,7 +319,7 @@ namespace Util {
         public string TempDir => m_directory.TempDir;
         public string GetTempPath() => m_directory.GetTempPath();
 
-        public event Action<string, long> OnCopyProgress;
+        public event ProgressDelegate OnCopyProgress;
         public event LoadFileAsyncDelegate OnTryLoadAsync;
 
         public bool TryGetPath(string key, out string path) {
