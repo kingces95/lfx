@@ -3,56 +3,15 @@ using Git.Lfx;
 using Util;
 using System.IO;
 using System.Threading.Tasks;
-using System.Reflection;
-using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Lfx {
-    public struct LfxRepoInfo {
-        public static implicit operator LfxInfo(LfxRepoInfo info) => info.m_info;
-
-        private readonly LfxInfo m_info;
-        private readonly string m_infoPath;
-        private readonly string m_contentPath;
-
-        public LfxRepoInfo(
-            LfxEnv env,
-            string infoPath) {
-
-            m_infoPath = infoPath;
-            m_info = LfxInfo.Load(infoPath);
-
-            var recursiveDir = env.InfoDir.GetRecursiveDir(infoPath);
-            m_contentPath = env.ContentDir.PathCombine(recursiveDir, infoPath.GetFileName());
-        }
-
-        // repo paths
-        public string InfoPath => m_infoPath;
-        public string ContentPath => m_contentPath;
-
-        // compose info
-        public LfxInfo Info => m_info;
-        public LfxPointer Pointer => m_info.Pointer;
-        public bool HasMetadata => Info.HasMetadata;
-        public LfxPointerType Type => Info.Type;
-        public bool IsExe => Info.IsExe;
-        public bool IsZip => Info.IsZip;
-        public bool IsFile => Info.IsFile;
-        public int Version => Info.Version;
-        public Uri Url => Info.Url;
-        public LfxArchiveId Hash => Info.Hash;
-        public string Args => Info.Args;
-        public long Size => Info.Size;
-        public long? ContentSize => Info.ExpandedSize;
-
-        public override string ToString() => InfoPath;
-    }
 
     public sealed class LfxEnv {
         public const string LfxInfoDirName = @".lfx";
         public const string LfxDirName = @"lfx";
         public const string LfxCacheDirName = @"lfx";
-        private const string GitDirName = ".git";
 
         public static readonly string DefaultUserCacheDir = Path.Combine(
             Environment.GetEnvironmentVariable("APPDATA"),
@@ -60,55 +19,70 @@ namespace Lfx {
         ).ToDir();
 
         public static class EnvironmentVariable {
-            public const string DiskCacheName = "LFX_DISK_CACHE_DIR";
-            public const string BusCacheName = "LFX_BUS_CACHE_DIR";
-            public const string LanCacheName = "LFX_LAN_CACHE_DIR";
+            public const string CacheDirName = "LFX_CACHE_DIR";
+            public const string ArchiveCacheDirName = "LFX_ARCHIVE_CACHE_DIR";
+            public const string ReadOnlyArchiveCacheDirName = "LFX_READONLY_ARCHIVE_CACHE_DIR";
 
-            public static readonly string DiskCache = Environment.GetEnvironmentVariable(DiskCacheName);
-            public static readonly string BusCache = Environment.GetEnvironmentVariable(BusCacheName);
-            public static readonly string LanCache = Environment.GetEnvironmentVariable(LanCacheName);
+            public static readonly string CacheDir = Environment.GetEnvironmentVariable(CacheDirName);
+            public static readonly string ArchiveCacheDir = Environment.GetEnvironmentVariable(ArchiveCacheDirName);
+            public static readonly string ReadOnlyArchiveCacheDir = Environment.GetEnvironmentVariable(ReadOnlyArchiveCacheDirName);
         }
 
         private readonly string m_workingDir;
-        private readonly string m_enlistmentDir;
-        private readonly string m_contentDir;
+        private readonly string m_rootDir;
+        private readonly string m_aliasesDir;
         private readonly string m_infoDir;
-        private readonly string m_diskCacheDir;
-        private readonly string m_busCacheDir;
-        private readonly string m_lanCacheDir;
+        private readonly string m_cacheDir;
+        private readonly string m_archiveCacheDir;
+        private readonly string m_readOnlyArchiveCacheDir;
         private readonly LfxLoader m_loader;
+        private readonly Lazy<IEnumerable<LfxEnv>> m_subEnv;
 
-        public LfxEnv() {
-            m_workingDir = Environment.CurrentDirectory.ToDir();
+        public LfxEnv(string workingDir = null) {
+            m_workingDir = (workingDir ?? Environment.CurrentDirectory).ToDir();
 
-            m_enlistmentDir = m_workingDir.FindDirectoryAbove(GitDirName)?.GetParentDir();
-            if (m_enlistmentDir != null) {
-                m_contentDir = Path.Combine(m_enlistmentDir, LfxDirName).ToDir();
-                m_infoDir = Path.Combine(m_enlistmentDir, LfxInfoDirName).ToDir();
+            m_infoDir = m_workingDir.FindDirectoryAbove(LfxInfoDirName);
+            if (m_infoDir != null) {
+                m_rootDir = m_infoDir.GetParentDir();
+                m_aliasesDir = Path.Combine(m_rootDir, LfxDirName).ToDir();
+                m_infoDir = Path.Combine(m_rootDir, LfxInfoDirName).ToDir();
             }
 
-            m_diskCacheDir = EnvironmentVariable.DiskCache.ToDir();
-            m_busCacheDir = EnvironmentVariable.BusCache.ToDir();
-            m_lanCacheDir = EnvironmentVariable.LanCache.ToDir();
+            m_cacheDir = EnvironmentVariable.CacheDir.ToDir();
+            m_archiveCacheDir = EnvironmentVariable.ArchiveCacheDir.ToDir();
+            m_readOnlyArchiveCacheDir = EnvironmentVariable.ReadOnlyArchiveCacheDir.ToDir();
 
             // default diskCacheDir
-            if (m_diskCacheDir == null) {
+            if (m_cacheDir == null) {
 
                 // if working dir partition equals %APPDATA% partition then put cache in %APPDATA%
                 if (m_workingDir.PathRootEquals(DefaultUserCacheDir))
-                    m_diskCacheDir = DefaultUserCacheDir;
+                    m_cacheDir = DefaultUserCacheDir;
 
                 // else put cache at root of working dir
                 else
-                    m_diskCacheDir = Path.Combine(Path.GetPathRoot(m_workingDir), LfxCacheDirName).ToDir();
+                    m_cacheDir = Path.Combine(Path.GetPathRoot(m_workingDir), LfxCacheDirName).ToDir();
             }
 
             // default busCacheDir
-            if (m_busCacheDir == null)
-                m_busCacheDir = m_diskCacheDir;
+            if (m_archiveCacheDir == null)
+                m_archiveCacheDir = m_cacheDir;
 
-            m_loader = new LfxLoader(m_diskCacheDir, m_busCacheDir, m_lanCacheDir);
+            m_loader = new LfxLoader(m_cacheDir, m_archiveCacheDir, m_readOnlyArchiveCacheDir);
             m_loader.OnProgress += progress => OnProgress?.Invoke(progress);
+
+            m_subEnv = new Lazy<IEnumerable<LfxEnv>>(() => {
+                if (m_rootDir == null)
+                    return Enumerable.Empty<LfxEnv>();
+
+                var result =
+                    from dir in m_rootDir.GetAllDirectories()
+                    where dir.GetDirectoryName().EqualsIgnoreCase(LfxInfoDirName)
+                    where !dir.EqualsIgnoreCase(m_infoDir)
+                    let subWorkingDir = dir.GetParentDir()
+                    select new LfxEnv(subWorkingDir);
+                return result.ToList();
+            });
         }
 
         public void ReLog(object obj = null) {
@@ -130,45 +104,77 @@ namespace Lfx {
 
         // compose loader
         public event LfxProgressDelegate OnProgress;
-        public Task<LfxEntry> GetOrLoadEntryAsync(LfxInfo info) {
-            if (!info.HasMetadata)
-                return GetOrLoadEntryAsync(info.Pointer);
-
-            return GetOrLoadEntryAsync(info.Pointer, info.Hash);
+        public Task<LfxContent> GetOrLoadContentAsync(LfxPointer pointer) {
+            return m_loader.GetOrLoadContentAsync(pointer);
         }
-        public Task<LfxEntry> GetOrLoadEntryAsync(LfxPointer pointer, LfxArchiveId? expectedHash = null) {
-            return m_loader.GetOrLoadEntryAsync(pointer, expectedHash);
+        public Task<LfxContent> GetOrLoadContentAsync(LfxInfo info) {
+            return m_loader.GetOrLoadContentAsync(info);
         }
-        public IEnumerable<LfxInfo> GetInfos(Uri url) {
-            return m_loader.GetInfos(url);
+        public bool TryGetContent(LfxInfo info, out LfxContent content) {
+            return m_loader.TryGetContent(info, out content);
         }
-        public string GetUrlHash(Uri url) => m_loader.GetUrlHash(url);
-        public IEnumerable<LfxEntry> DiskCache() => m_loader.DiskCache();
-        public IEnumerable<LfxEntry> BusCache() => m_loader.BusCache();
-        public IEnumerable<LfxEntry> LanCache() => m_loader.LanCache();
+        public IEnumerable<LfxInfo> GetInfos(LfxArchiveId hash) {
+            return m_loader.GetInfos(hash);
+        }
+        public bool TryGetArchiveId(Uri url, out LfxArchiveId hash) {
+            return m_loader.TryGetArchiveId(url, out hash);
+        }
+        public IEnumerable<LfxContent> CacheContent() => m_loader.Content();
 
         // environmental paths
         public string WorkingDir => m_workingDir;
-        public string EnlistmentDir => m_enlistmentDir;
-        public string ContentDir => m_contentDir;
+        public string RootDir => m_rootDir;
+        public string Dir => m_aliasesDir;
         public string InfoDir => m_infoDir;
-        public string DiskCacheDir => m_diskCacheDir;
-        public string BusCacheDir => m_busCacheDir;
-        public string LanCacheDir => m_lanCacheDir;
+        public string CacheDir => m_cacheDir;
+        public string ArchiveCacheDir => m_archiveCacheDir;
+        public string ReadOnlyArchiveCacheDir => m_readOnlyArchiveCacheDir;
 
-        public LfxRepoInfo GetRepoInfo(string repoInfoPath) {
-            return new LfxRepoInfo(this, repoInfoPath);
+        // sub-environments
+        public IEnumerable<LfxEnv> SubEnvironments() => m_subEnv.Value;
+        public IEnumerable<LfxPath> LocalPaths() {
+            foreach (var path in GetPath().Paths(recurse: true))
+                yield return path;
+        }
+        public IEnumerable<LfxPath> AllPaths() {
+            foreach (var path in LocalPaths())
+                yield return path;
+
+            foreach (var env in SubEnvironments()) {
+                foreach (var subPath in env.LocalPaths())
+                    yield return subPath;
+            }
+        }
+
+        // paths
+        public bool TryGetPath(string path, out LfxPath lfxPath) {
+            return LfxPath.TryCreate(Dir, InfoDir, path.GetFullPath(), out lfxPath);
+        }
+        public LfxPath GetPath(string path = null) {
+            if (Dir == null)
+                throw new InvalidOperationException($"Path '{path}' is not in an lfx environment.");
+
+            return LfxPath.Create(Dir, InfoDir, path);
+        }
+        internal LfxLoadAction GetLoadAction(LfxInfo info) {
+            return m_loader.GetLoadAction(info);
+        }
+        public IEnumerable<LfxCount> GetLoadEffort(
+            IEnumerable<LfxPath> paths,
+            out IEnumerable<LfxPath> pathsWithoutMetadata) {
+            return m_loader.GetLoadEffort(paths, out pathsWithoutMetadata);
         }
 
         // housecleaning
         public void ClearCache() {
-            DiskCacheDir.DeletePath();
-            BusCacheDir.DeletePath();
+            CacheDir.DeletePath();
+            ArchiveCacheDir.DeletePath();
         }
         public void CleanCache() => m_loader.Clean();
 
         internal Task GetOrLoadEntryAsync(object pointer) {
             throw new NotImplementedException();
         }
+
     }
 }

@@ -102,27 +102,31 @@ namespace Util {
     /// same partition as the cache before a file lock is taken under which a move
     /// (or "aliasing" hard link for files or junction for directories) is executed.
     /// </summary>
-    public sealed class ImmutableDirectory :
+    public sealed class ConstDirectory :
         IDisposable,
         IEnumerable<string> {
 
-        public delegate void ProgressDelegate(string sourcePath, string targetPath, long bytes);
+        public delegate void ProgressDelegate(string sourcePath, string targetPath, long? bytes);
 
         private const string LockFileName = ".lock";
         private const string TempDirName = ".temp";
 
         private readonly string m_dir;
         private readonly string m_globalTempDir;
-        private readonly TempDir m_tempDir;
+        private readonly Lazy<TempDir> m_tempDir;
         private readonly string m_lockPath;
         private readonly Func<string, string> m_keyToCachePath;
 
-        public ImmutableDirectory(string dir, Func<string, string> keyToCachePath = null) {
+        public ConstDirectory(string dir, Func<string, string> keyToCachePath = null) {
             m_dir = dir.ToDir();
             m_globalTempDir = Path.Combine(dir, TempDirName);
-            m_tempDir = new TempDir(Path.Combine(m_globalTempDir, Path.GetRandomFileName()));
             m_lockPath = Path.Combine(m_dir, LockFileName);
             m_keyToCachePath = keyToCachePath ?? (o => o);
+
+            // if read-only then cannot create tempDir
+            m_tempDir = new Lazy<TempDir>(() =>
+                new TempDir(Path.Combine(m_globalTempDir, Path.GetRandomFileName()))
+            );
         }
 
         private string KeyToCachePath(string key) {
@@ -136,7 +140,7 @@ namespace Util {
             if (!path.PathIsRooted())
                 path = Path.Combine(m_dir, path);
 
-            if (!path.IsSubDirOf(m_dir))
+            if (!path.IsSubPathOf(m_dir))
                 throw new Exception(
                     $"Key '{key}' resolved to a path '{path}' outside of cache directory '{m_dir}'");
 
@@ -156,12 +160,12 @@ namespace Util {
 
             var copy = !move;
 
-            // transform key to path
-            var path = KeyToCachePath(key);
-
             // check if path already created
-            if (path.PathExists())
+            string path;
+            if (TryGetPath(key, out path))
                 return path;
+
+            path = KeyToCachePath(key);
 
             // can only alias when asked to copy to/form the same paration
             if (preferAlias && copy && sourcePath.PathRootEquals(m_dir)) {
@@ -199,9 +203,9 @@ namespace Util {
         public event ProgressDelegate OnCopyProgress;
 
         public string Dir => m_dir;
-        public string TempDir => m_tempDir.ToString();
+        public string TempDir => m_tempDir.Value.ToString();
         public string GetTempPath() {
-            return Path.Combine(m_tempDir, Path.GetRandomFileName());
+            return Path.Combine(m_tempDir.Value, Path.GetRandomFileName());
         }
 
         public Task<string> EchoText(string key, string text) {
@@ -225,19 +229,28 @@ namespace Util {
         }
         public bool TryGetPath(string key, out string path) {
             path = KeyToCachePath(key);
-            return path.PathExists();
+            if (path.PathExistsAsDirectory()) {
+                path = path.ToDir();
+
+            } else if (!path.PathExistsAsFile()) {
+                path = null;
+                return false;
+            }
+
+            return true;
         }
 
         public void Clear() {
             m_dir.DeletePath();
         }
         public void Clean() {
-            foreach (var directory in m_globalTempDir.GetDirectories().Except(new[] { m_tempDir.Path }))
+            foreach (var directory in m_globalTempDir.GetDirectories().Except(new[] { m_tempDir.Value.Path }))
                 directory.DeletePath(force: true);
         }
 
         public void Dispose() {
-            m_tempDir.Dispose();
+            if (m_tempDir.IsValueCreated)
+                m_tempDir.Value.Dispose();
         }
 
         public IEnumerator<string> GetEnumerator() {
@@ -264,17 +277,17 @@ namespace Util {
     public delegate Task<string> LoadFileAsyncDelegate(string key, string tempPath);
     public sealed class AsyncSelfLoadingDirectory : IEnumerable<string> {
 
-        public delegate void ProgressDelegate(string sourcePath, string targetPath, long bytes);
+        public delegate void ProgressDelegate(string sourcePath, string targetPath, long? bytes);
 
         private readonly AsyncSelfLoadingDictionary<string, string> m_dictionary;
-        private readonly ImmutableDirectory m_directory;
+        private readonly ConstDirectory m_directory;
 
         public AsyncSelfLoadingDirectory(string dir, Func<string, string> keyToCachePath = null) {
             m_dictionary = new AsyncSelfLoadingDictionary<string, string>();
             m_dictionary.OnTryLoad += TryLoadHandler;
             m_dictionary.OnTryLoadAsync += TryLoadAsyncHandler;
 
-            m_directory = new ImmutableDirectory(dir, keyToCachePath);
+            m_directory = new ConstDirectory(dir, keyToCachePath);
             m_directory.OnCopyProgress += (sourcePath, targetPath, progress) => 
                 OnCopyProgress?.Invoke(sourcePath, targetPath, progress);
         }
@@ -307,7 +320,7 @@ namespace Util {
                 return new KeyValuePair<bool, string>(false, default(string));
 
             // cache content to disk by key
-            var contentPath = path.IsSubDirOf(TempDir) ?
+            var contentPath = path.IsSubPathOf(TempDir) ?
                 await m_directory.Move(path, key) :
                 await m_directory.Copy(path, key, preferAlias: true);
 
@@ -322,8 +335,12 @@ namespace Util {
         public event ProgressDelegate OnCopyProgress;
         public event LoadFileAsyncDelegate OnTryLoadAsync;
 
+        public bool Contains(string key) {
+            string path;
+            return TryGetPath(key, out path);
+        }
         public bool TryGetPath(string key, out string path) {
-            return m_dictionary.TryGetValue(key, out path);
+            return m_directory.TryGetPath(key, out path);
         }
         public async Task<string> TryGetOrLoadPathAsync(string key) {
             var result = await m_dictionary.TryGetOrLoadValueAsync(key);

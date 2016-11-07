@@ -106,32 +106,12 @@ namespace Util {
             return monitor;
         }
 
-        public static Task CopyToAsync(
+        public async static Task CopyToAsync(
             this Stream source, 
             Stream target,
             int bufferSize = DefaultBufferSize,
             CancellationToken? cancellationToken = null,
-            Action<long> onProgress = null) {
-
-            return CopyToAsync(source, new[] { target }, bufferSize, cancellationToken, onProgress);
-        }
-
-        public static void CopyTo(
-            this Stream source, 
-            Stream target,
-            int bufferSize = DefaultBufferSize,
-            CancellationToken? cancellationToken = null,
-            Action<long> onProgress = null) {
-
-            CopyToAsync(source, target, bufferSize, cancellationToken, onProgress).Wait();
-        }
-
-        public static async Task CopyToAsync(
-            this Stream source, 
-            Stream[] targets, 
-            int bufferSize = DefaultBufferSize, 
-            CancellationToken? cancellationToken = null, 
-            Action<long> onProgress = null) {
+            Action<long?> onProgress = null) {
 
             if (cancellationToken == null)
                 cancellationToken = CancellationToken.None;
@@ -142,20 +122,20 @@ namespace Util {
                 if (bytesRead == 0)
                     break;
 
-                await Task.WhenAll(
-                    targets.Select(o => o.WriteAsync(buffer, 0, bytesRead, cancellationToken.Value))
-                );
+                await target.WriteAsync(buffer, 0, bytesRead, cancellationToken.Value);
 
                 onProgress(bytesRead);
             }
+
+            onProgress(null /*finished*/);
         }
 
         public static async Task<string> ExpandZip(
             this string zipFilePath, 
             string targetDir, 
-            Action<long> onProgress = null) {
+            Action<long?> onProgress = null) {
 
-            await Task.Run(() => {
+            await Task.Run((async () => {
 
                 var zipFile = ZipFile.Open(zipFilePath, ZipArchiveMode.Read);
 
@@ -171,17 +151,34 @@ namespace Util {
                         throw new ArgumentException(
                             $"Zip package '{zipFilePath}' entry '{entry.FullName}' is outside package.");
 
-                    // unzip entry
                     Directory.CreateDirectory(targetPath.GetDir());
-                    using (var targeStream = File.OpenWrite(targetPath)) {
-                        using (var sourceStream = entry.Open()) {
 
-                            // report progress while unzipping
-                            sourceStream.CopyTo(targeStream, onProgress: onProgress);
+                    // open archive entry
+                    using (var sourceStream = entry.Open()) {
+
+                        // open archive extraction target
+                        using (var targeStream = File.OpenWrite(targetPath)) {
+
+                            // decompress
+                            await CopyToAsync(
+                                sourceStream, 
+                                targeStream, 
+                                onProgress: bytes => {
+
+                                    // delay finish until all entries extracted
+                                    if (bytes == null)
+                                        return;
+
+                                    // report progress
+                                    onProgress(bytes);
+                                }
+                            );
                         }
                     }
                 }
-            });
+
+                onProgress(null /* finished */);
+            }));
 
             return targetDir;
         }
@@ -191,7 +188,7 @@ namespace Util {
             string tempPath,
             int bufferSize = DefaultBufferSize,
             CancellationToken? cancellationToken = null,
-            Action<long> onProgress = null) {
+            Action<long?> onProgress = null) {
 
             var sha256 = SHA256.Create();
 
@@ -218,10 +215,10 @@ namespace Util {
             string target,
             int bufferSize = DefaultBufferSize,
             CancellationToken? cancellationToken = null,
-            Action<long> onProgress = null) {
+            Action<long?> onProgress = null) {
 
             if (File.Exists(path)) {
-                using (var pathStream = File.Open(path, FileMode.Open))
+                using (var pathStream = File.OpenRead(path))
                     using (var targetStream = File.Create(target))
                         await pathStream.CopyToAsync(targetStream, bufferSize, cancellationToken, onProgress);
             }
@@ -265,9 +262,10 @@ namespace Util {
 
         // tests
         public static bool IsUncPath(this string path) => new Uri(path).IsUnc;
-        public static bool IsDir(this string path) {
+        public static bool IsDirectory(this string path) {
             return path.EndsWith($"{IOPath.DirectorySeparatorChar}");
         }
+        public static bool IsFile(this string path) => !path.IsDirectory();
         public static bool EqualPath(this string path, string target) {
             return string.Compare(
                 IOPath.GetFullPath(path),
@@ -275,26 +273,38 @@ namespace Util {
                 ignoreCase: false
             ) == 0;
         }
-        public static bool IsSubDirOf(this string path, string basePath) {
-            return !basePath.GetRecursiveDir(path).Contains("..");
+        public static bool IsSubPathOf(this string path, string basePath) {
+            if (!basePath.PathRootEquals(path))
+                return false;
+
+            return !basePath.GetRelativePath(path).Contains("..");
         }
         public static bool PathRootEquals(this string path, string target) {
-            return IOPath.GetPathRoot(path).EqualsIgnoreCase(IOPath.GetPathRoot(target));
+            return path.GetPathRoot().EqualsIgnoreCase(target.GetPathRoot());
         }
-        public static bool PathIsFile(this string path) => File.Exists(path);
-        public static bool PathIsDirectory(this string path) => Directory.Exists(path);
-        public static bool PathExists(this string path) => path.PathIsFile() || path.PathIsDirectory();
+        public static bool PathExistsAsFile(this string path) => File.Exists(path);
+        public static bool PathExistsAsDirectory(this string path) => Directory.Exists(path);
+        public static bool PathExists(this string path) => path.PathExistsAsFile() || path.PathExistsAsDirectory();
         public static bool PathIsRooted(this string path) => IOPath.IsPathRooted(path);
 
         // transforms
-        public static string ToDir(this string dir) {
-            if (dir == null)
+        public static string ToFile(this string path) {
+            if (path == null)
                 return null;
 
-            if (!dir.EndsWith($"{IOPath.DirectorySeparatorChar}"))
-                dir += IOPath.DirectorySeparatorChar;
+            if (path.EndsWith($"{IOPath.DirectorySeparatorChar}"))
+                path = path.Trim(IOPath.DirectorySeparatorChar);
 
-            return dir;
+            return path;
+        }
+        public static string ToDir(this string path) {
+            if (path == null)
+                return null;
+
+            if (!path.EndsWith($"{IOPath.DirectorySeparatorChar}"))
+                path += IOPath.DirectorySeparatorChar;
+
+            return path;
         }
         public static string GetDir(this string dir) {
             var dirName = IOPath.GetDirectoryName(dir);
@@ -303,18 +313,39 @@ namespace Util {
             return dirName.ToDir();
         }
         public static string GetRecursiveDir(this string basePath, string subPath) {
+            return basePath.GetRelativePath(subPath).GetDir();
+        }
+        public static string GetRelativePath(this string basePath, string subPath) {
+            if (!basePath.PathRootEquals(subPath))
+                throw new ArgumentException(
+                    $"Expected root paths for the following to be equal: '{basePath}' and '{subPath}'.");
+
             if (!IOPath.IsPathRooted(subPath))
                 return subPath.GetDir();
 
             var relativeUri = new Uri(basePath).MakeRelativeUri(new Uri(subPath));
-            var recursivePath = relativeUri.ToString().Replace("/", IOPath.DirectorySeparatorChar.ToString());
-            return recursivePath.GetDir();
+            return relativeUri.ToString().Replace("/", IOPath.DirectorySeparatorChar.ToString());
+        }
+        public static string GetPathName(this string path) {
+            var name = path.GetFileName();
+            if (string.IsNullOrEmpty(name))
+                return path.GetDirectoryName();
+            return name;
         }
         public static string GetFileName(this string path) {
             return IOPath.GetFileName(path);
         }
+        public static string GetPathRoot(this string path) {
+            return IOPath.GetPathRoot(path);
+        }
+        public static string GetDirectoryName(this string path) {
+            return IOPath.GetDirectoryName(path).GetFileName();
+        }
         public static string PathCombine(this string path, params string[] subPath) {
             return IOPath.Combine(new[] { path }.Concat(subPath).ToArray());
+        }
+        public static string GetFullPath(this string path) {
+            return IOPath.GetFullPath(path);
         }
 
         // directory + file
@@ -386,6 +417,7 @@ namespace Util {
             var size = path.GetAllFileInfos().Sum(o => o.Length);
             return size;
         }
+
         public static IEnumerable<string> GetFiles(this string path) {
             return Directory.GetFiles(path);
         }
@@ -398,11 +430,34 @@ namespace Util {
         public static IEnumerable<DirectoryInfo> GetDirectoryInfos(this string path) {
             return new DirectoryInfo(path).GetDirectories();
         }
+        public static IEnumerable<string> GetPaths(this string path) {
+            if (path.PathExistsAsFile())
+                return new[] { path };
+
+            return path.GetFiles().Concat(path.GetDirectories()).OrderBy(o => o);
+        }
+        public static IEnumerable<FileSystemInfo> GetPathInfos(this string path) {
+            return path.GetFileInfos().Cast<FileSystemInfo>()
+                .Concat(path.GetDirectoryInfos()).OrderBy(o => o);
+        }
+
         public static IEnumerable<string> GetAllFiles(this string path) {
             return Directory.GetFiles(path, "*", SearchOption.AllDirectories);
         }
         public static IEnumerable<FileInfo> GetAllFileInfos(this string path) {
             return new DirectoryInfo(path).GetFiles("*", SearchOption.AllDirectories);
+        }
+        public static IEnumerable<string> GetAllDirectories(this string path) {
+            return Directory.GetDirectories(path, "*", SearchOption.AllDirectories).Select(o => o.ToDir());
+        }
+        public static IEnumerable<DirectoryInfo> GetAllDirectoryInfos(this string path) {
+            return new DirectoryInfo(path).GetDirectories("*", SearchOption.AllDirectories);
+        }
+        public static IEnumerable<string> GetAllPaths(this string path) {
+            return path.GetPaths().Concat(path.GetDirectories().SelectMany(o => o.GetAllPaths()));
+        }
+        public static IEnumerable<FileSystemInfo> GetAllPathInfos(this string path) {
+            return path.GetPathInfos().Concat(path.GetDirectories().SelectMany(o => o.GetAllPathInfos()));
         }
 
         // aliases
@@ -413,12 +468,12 @@ namespace Util {
 
             Directory.CreateDirectory(target.GetDir());
 
-            if (path.PathIsFile()) {
+            if (path.PathExistsAsFile()) {
                 if (!Kernel32.CreateHardLink(target, path, IntPtr.Zero))
                     throw new ArgumentException($"Failed to create hard link '{path}' -> '{target}'.");
             } 
             
-            else if (path.PathIsDirectory()) {
+            else if (path.PathExistsAsDirectory()) {
                 JunctionPoint.Create(path, target, overwrite: true);
             } 
             
@@ -428,17 +483,29 @@ namespace Util {
             return target;
         }
         public static IEnumerable<string> GetPathAliases(this string path) {
-            if (path.PathIsFile())
+            if (path.PathExistsAsFile())
                 return HardLinkInfo.GetLinks(path);
 
-            if (path.PathIsDirectory()) {
+            if (path.PathExistsAsDirectory()) {
                 if (!JunctionPoint.Exists(path))
                     return Enumerable.Empty<string>();
 
-                return new[] { JunctionPoint.GetTarget(path) };
+                return new[] { JunctionPoint.GetTarget(path).ToDir() };
             }
             
-            else throw new IOException($"The path '{path}' does not exist.");
+            return Enumerable.Empty<string>();
+        }
+        public static bool IsPathAlias(this string path) {
+            if (path.PathExistsAsFile())
+                return HardLinkInfo.GetLinkCount(path) > 0;
+
+            if (path.PathExistsAsDirectory())
+                return JunctionPoint.Exists(path);
+
+            return false;
+        }
+        public static bool IsPathAliasOf(this string source, string target) {
+            return source.GetPathAliases().Any(o => o.EqualsIgnoreCase(target));
         }
 
         public static void WriteAllText(this string path, string text) {
@@ -453,7 +520,7 @@ namespace Util {
         }
 
         public static string FindDirectoryAbove(this string dir, string searchPattern) {
-            return dir.FindDirectoriesAbove(searchPattern).SingleOrDefault();
+            return dir.FindDirectoriesAbove(searchPattern).FirstOrDefault();
         }
         public static string FindFileAbove(this string dir, string searchPattern) {
             return dir.FindFilesAbove(searchPattern).SingleOrDefault();
@@ -585,6 +652,21 @@ namespace Util {
             if (value == null)
                 return (T)Enum.ToObject(typeof(T), 0);
             return (T)Enum.Parse(typeof(T), value, ignoreCase);
+        }
+
+        // binaryToInt
+        public const string BinaryPrefix = "0b";
+        public static int Parse(this string value) {
+            if (value.StartsWith(BinaryPrefix)) {
+                int result = 0;
+                for (int i = BinaryPrefix.Length; i < value.Length; i++) {
+                    if (value[i] == '1')
+                        result |= 1;
+                    result = result << 1;
+                }
+            }
+
+            return int.Parse(value);
         }
 
         // string

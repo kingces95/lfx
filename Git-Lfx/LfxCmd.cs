@@ -8,6 +8,7 @@ using Git.Lfx;
 using Util;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Text;
 
 namespace Lfx {
 
@@ -19,10 +20,15 @@ namespace Lfx {
         Force, F,
         Verbose, V,
         Serial,
+        Local,
         Hash,
         Disk, Bus, Lan,
+        R, Alias
     }
 
+    public sealed class LfxCmdException : Exception {
+        public LfxCmdException(string message) : base(message) { }
+    }
     public sealed class LfxCmd {
         public const string Exe = "git-lfx.exe";
 
@@ -93,11 +99,21 @@ namespace Lfx {
                 return;
             }
 
+            if (e is LfxCmdException) {
+                Log(e.Message);
+                return;
+            }
+
             Log($"{indent}{e.GetType()}: {e.Message}");
             Log(e.InnerException, indent + "  ");
         }
-        private LfxProgressTracker LogProgress(bool verbose = false) {
-            var progress = new LfxProgressTracker(m_env, verbose);
+        private LfxProgressTracker LogProgress(
+            IEnumerable<LfxCount> counts = null, 
+            bool verbose = false) {
+
+            if (counts == null)
+                counts = Enumerable.Empty<LfxCount>();
+            var progress = new LfxProgressTracker(m_env, counts, verbose);
             m_env.OnProgress += progress.UpdateProgress;
             return progress;
         }
@@ -108,10 +124,11 @@ namespace Lfx {
             Log();
             Log("Env                                Dump environment.");
             Log();
-            Log("Checkout                           Sync content in lfx directory using pointers in .lfx directory.");
+            Log("Checkout [<path>]                  Sync content in lfx directory using pointers in .lfx directory.");
             Log("    -q, --quite                        Suppress progress reporting.");
             Log("    -v, --verbose                      Log diagnostic information.");
             Log("    --serial                           Download, copy, and/or expand each pointer serially.");
+            Log("    --local                            Do not checkout submodules.");
             Log();
             Log("Pull <path> <url> [<exeCmd>]       Pull content to path in 'lfx' and add corrisponding pointer to '.lfx'.");
             Log("    -q, --quite                        Suppress progress reporting.");
@@ -119,13 +136,17 @@ namespace Lfx {
             Log("    --exe                              Url points to self expanding archive. Use '{0}' in <exeCmd> for target directory.");
             Log("    --nuget                            Url points to nuget package.");
             Log();
-            Log("Fetch <url> [<exeCmd>]             Fetch content and echo poitner.");
+            Log("Fetch <url> [<exeCmd>]             Fetch content and echo pointer.");
             Log("    -q, --quite                        Suppress progress reporting.");
             Log("    --zip                              Url points to zip archive.");
-            Log("    --exe                              Url points to self expanding archive. Use '{0}' in <cmd> for target directory.");
+            Log("    --exe                              Url points to self expanding archive. Use '{0}' in <exeCmd> for target directory.");
             Log("    --nuget                            Url points to nuget package.");
             Log();
-            Log("Show <url>                         Show cached poitner for url.");
+            Log("Ls [<path>]                        Lists state of aliases in working directory.");
+            Log("    -r                                 Recursive.");
+            Log("    --alias                            Show alias; Show hard link or junction into cache.");
+            Log();
+            Log("Show <url|path>                    Show cached pointer for url.");
             Log("    --hash                             Just show the hash for the url.");
             Log();
             Log("Cache                              Dump cache stats.");
@@ -135,20 +156,24 @@ namespace Lfx {
         }
         public void Env() {
             Log($"Environment Variables:");
-            Log($"  {LfxEnv.EnvironmentVariable.DiskCacheName}={LfxEnv.EnvironmentVariable.DiskCache}");
-            Log($"  {LfxEnv.EnvironmentVariable.BusCacheName}={LfxEnv.EnvironmentVariable.BusCache}");
-            Log($"  {LfxEnv.EnvironmentVariable.LanCacheName}={LfxEnv.EnvironmentVariable.LanCache}");
+            Log($"  {LfxEnv.EnvironmentVariable.CacheDirName}={LfxEnv.EnvironmentVariable.CacheDir}");
+            Log($"  {LfxEnv.EnvironmentVariable.ArchiveCacheDirName}={LfxEnv.EnvironmentVariable.ArchiveCacheDir}");
+            Log($"  {LfxEnv.EnvironmentVariable.ReadOnlyArchiveCacheDirName}={LfxEnv.EnvironmentVariable.ReadOnlyArchiveCacheDir}");
             Log();
 
             Log($"Directories:");
-            Log($"  {nameof(m_env.WorkingDir)}: {m_env.WorkingDir}");
-            Log($"  {nameof(m_env.EnlistmentDir)}: {m_env.EnlistmentDir}");
-            Log($"  {nameof(m_env.ContentDir)}: {m_env.ContentDir}");
-            Log($"  {nameof(m_env.InfoDir)}: {m_env.InfoDir}");
-            Log($"  {nameof(m_env.DiskCacheDir)}: {m_env.DiskCacheDir}");
-            Log($"  {nameof(m_env.BusCacheDir)}: {m_env.BusCacheDir}");
-            Log($"  {nameof(m_env.LanCacheDir)}: {m_env.LanCacheDir}");
+            Log($"  {nameof(m_env.Dir),-25} {m_env.Dir}");
+            Log($"  {nameof(m_env.InfoDir),-25} {m_env.InfoDir}");
+            Log($"  {nameof(m_env.CacheDir),-25} {m_env.CacheDir}");
+            Log($"  {nameof(m_env.ArchiveCacheDir),-25} {m_env.ArchiveCacheDir}");
+            Log($"  {nameof(m_env.ReadOnlyArchiveCacheDir),-25} {m_env.ReadOnlyArchiveCacheDir}");
             Log();
+
+            if (m_env.SubEnvironments().Any()) {
+                Log($"Sub-Environments:");
+                foreach (var subEnv in m_env.SubEnvironments())
+                    Log($"  {subEnv.WorkingDir}");
+            }
         }
         public void Cache() {
             var args = Parse(
@@ -181,26 +206,72 @@ namespace Lfx {
             }
 
             // dump
-            var header = $"{"Type",-5}  {"Hash",-8}  {"Compressed",-10}  {"Expanded",-8}  {"Url_Hash",-8}  {"Url"} {"[Args]"}";
+            var header = $"{"Type",-5}  {"Hash",-8}  {"Download",8}  {"Size",8}  {"Url_Hash",-8}  {"Url"} {"[Args]"}";
             Log(header.Replace("_", " "));
             Log(Regex.Replace(header, @"[^\s]", "-"));
             var entries =
-                from entry in m_env.DiskCache()
+                from entry in m_env.CacheContent()
                 let info = entry.Info
                 orderby info.Url.ToString()
                 select info;
             foreach (var o in entries) {
                 var type = $"{o.Type}";
-                var urlHash = $"{m_env.GetUrlHash(o.Url).Substring(0, 8)}";
+                var urlHash = $"{LfxUrlId.Create(o.Url).ToString().Substring(0, 8)}";
                 var hash = $"{o.Hash.ToString().Substring(0, 8)}";
-                var fileSize = $"{o.Size.ToFileSize()}";
-                var contentSize = $"{o.ContentSize.ToFileSize()}";
+                var downloadSize = $"{o.DownloadSize?.ToFileSize()}";
+                var size = $"{o.Size?.ToFileSize()}";
 
-                Log($"{type,-5}  {hash,8}  {fileSize,10}  {contentSize,8}  {urlHash,8}  {o.Url} {o.Args}");
+                Log($"{type,-5}  {hash,8}  {downloadSize,8}  {size,8}  {urlHash,8}  {o.Url} {o.Args}");
             }
-            var totalContentSize = entries.Sum(o => o.ContentSize);
-            var totalArchiveSize = entries.Sum(o => o.Size);
-            Log($"{entries.Count(), 15} File(s) {totalContentSize.ToFileSize(), 8} Bytes, {totalArchiveSize.ToFileSize(), 8} Compressed Bytes");
+            var totalContentSize = entries.Sum(o => o.Size);
+            var totalArchiveSize = entries.Sum(o => o.DownloadSize);
+            Log($"{entries.Count(), 15} File(s) {totalContentSize?.ToFileSize(), 8} Bytes, {totalArchiveSize?.ToFileSize(), 8} Compressed Bytes");
+        }
+        public void Show() {
+
+            // parse
+            var args = Parse(
+                minArgs: 1,
+                maxArgs: 1,
+                switchInfo: GitCmdSwitchInfo.Create(
+                    LfxCmdSwitches.Hash 
+               )
+            );
+            var arg = args[0];
+            var justHash = args.IsSet(LfxCmdSwitches.Hash);
+
+            Uri url;
+            LfxPath path;
+
+            // try url
+            if (!Uri.TryCreate(arg, UriKind.Absolute, out url)) {
+
+                // try path
+                if (!m_env.TryGetPath(arg, out path))
+                    throw new LfxCmdException($"Couldn't parse '{arg}' as url or path.");
+
+                var info = path.Info;
+                if (info == null || info?.HasMetadata == false)
+                    throw new LfxCmdException($"Path '{path}' has no associated info.");
+                url = info?.Url;
+            }
+                
+            // just print hash
+            if (justHash) {
+                Log($"{LfxUrlId.Create(url)}");
+                return;
+            }
+
+            LfxArchiveId hash;
+            if (!m_env.TryGetArchiveId(url, out hash))
+                throw new LfxCmdException($"No archive hash found for url '{url}'.");
+
+            // try get info
+            var infos = m_env.GetInfos(hash).ToArray();
+            if (!infos.Any())
+                throw new LfxCmdException($"No pointer cached for url '{url}'.");
+
+            Log(string.Join(Environment.NewLine + Environment.NewLine, infos.ToArray()));
         }
 
         public Task Pull() {
@@ -252,7 +323,7 @@ namespace Lfx {
                 LogProgress();
 
             // load!
-            var entry = await m_env.GetOrLoadEntryAsync(pointer);
+            var entry = await m_env.GetOrLoadContentAsync(pointer);
 
             // fetch
             if (!isPull) {
@@ -261,98 +332,316 @@ namespace Lfx {
             }
 
             // ensure pulling only done in lfx subdirectory
-            var repoContentPath = Path.GetFullPath(args[0]);
-            if (!repoContentPath.IsSubDirOf(m_env.ContentDir))
-                throw new ArgumentException(
-                    $"Expected path '{repoContentPath}' to be in/a subdirectory of '{m_env.ContentDir}'.");
+            var path = m_env.GetPath(Path.GetFullPath(args[0]));
 
             // add alias to cached content (wha-bam!)
-            entry.Path.AliasPath(repoContentPath);
-
-            // write info to .lfx subdirectory
-            var recursiveDir = m_env.ContentDir.GetRecursiveDir(repoContentPath);
-            var repoPointerPath = Path.Combine(m_env.InfoDir, recursiveDir, repoContentPath.GetFileName());
-            Directory.CreateDirectory(repoPointerPath.GetDir());
-            File.WriteAllText(repoPointerPath, entry.Info.ToString());
+            path.MakeAliasOf(entry);
         }
 
-        public void Show() {
+        private IEnumerable<LfxPath> GetPaths(string arg, bool recurse, bool local) {
+            var path = arg;
+            if (path == null)
+                path = Environment.CurrentDirectory.ToDir();
 
-            // parse
-            var args = Parse(
-                minArgs: 1,
-                maxArgs: 1,
-                switchInfo: GitCmdSwitchInfo.Create(
-                    LfxCmdSwitches.Hash 
-               )
-            );
-            var arg = args[0];
-            var justHash = args.IsSet(LfxCmdSwitches.Hash);
+            path = path.GetFullPath();
 
-            // try url
-            Uri url;
-            if (!Uri.TryCreate(arg, UriKind.Absolute, out url))
-                throw new ArgumentException($"Couldn't parse '{arg}' as url.");
+            LfxPath lfxPath;
+            if (!m_env.TryGetPath(path, out lfxPath)) {
 
-            // just print hash
-            if (justHash) {
-                Log($"{m_env.GetUrlHash(url)}");
-                return;
+                // all paths in all environments
+                if (arg == null && 
+                    m_env.RootDir != null && // working dir puts us in an lfx env
+                    path.IsSubPathOf(m_env.RootDir) && // path in lfx env
+                    !path.IsSubPathOf(m_env.Dir)) // path is not in lfx directory
+                    return local ? m_env.LocalPaths() : m_env.AllPaths();
+
+                throw new LfxCmdException($"Path '{path}' has no associated lfx metadata.");
             }
 
-            // try get info
-            var infos = m_env.GetInfos(url).ToArray();
-            if (!infos.Any())
-                throw new ArgumentException($"No pointer cached for url '{url}'.");
+            // file or archive
+            if (lfxPath.IsContent)
+                return new[] { lfxPath };
 
-            Log(string.Join(Environment.NewLine + Environment.NewLine, infos.ToArray()));
+            // directory
+            return lfxPath.Paths(recurse: recurse);
         }
+        public void Ls() {
+            var args = Parse(
+                minArgs: 0,
+                maxArgs: 1,
+                switchInfo: GitCmdSwitchInfo.Create(
+                    LfxCmdSwitches.R,
+                    LfxCmdSwitches.Alias,
+                    LfxCmdSwitches.Local
+               )
+            );
 
+            var recurse = args.IsSet(LfxCmdSwitches.R);
+            var local = args.IsSet(LfxCmdSwitches.Local);
+            var showAliases = args.IsSet(LfxCmdSwitches.Alias);
+
+            var paths = GetPaths(args.FirstOrDefault(), recurse, local).ToList();
+
+            // log header
+            Log(LfxLsPathRow.Header);
+
+            // group by directory
+            var pathsByDir = paths.GroupBy(o => o.Directory).ToList();
+
+            // log paths grouped by directory
+            foreach (var group in pathsByDir) {
+                Log($"{group.Key}");
+                foreach (var o in group)
+                    Log(new LfxLsPathRow(LfxPathEx.Create(m_env, o)));
+                Log();
+            }
+
+            // log footer
+            IEnumerable<LfxPath> pathsWithoutMetadata;
+            foreach (var counts in m_env.GetLoadEffort(paths, out pathsWithoutMetadata).Where(o => o.Bytes > 0))
+                Log($"{counts.Count,15} File(s) {counts.Bytes.ToFileSize(),10} {counts.Action}");
+        }
         public async Task Checkout() {
             // checkout
 
+            // parse args
             var args = Parse(
                 minArgs: 0,
-                maxArgs: 0,
+                maxArgs: 1,
                 switchInfo: GitCmdSwitchInfo.Create(
                     LfxCmdSwitches.Quite, LfxCmdSwitches.Q,
                     LfxCmdSwitches.Verbose, LfxCmdSwitches.V,
-                    LfxCmdSwitches.Serial
+                    LfxCmdSwitches.Serial,
+                    LfxCmdSwitches.Local,
+                    LfxCmdSwitches.R
                )
             );
-
-            // todo: compute diff to update. for now, nuke lfx
-            m_env.ContentDir.DeletePath(force: true);
-
-            // log progress
             var isQuiet = args.IsSet(LfxCmdSwitches.Q, LfxCmdSwitches.Quite);
             var isVerbose = args.IsSet(LfxCmdSwitches.V, LfxCmdSwitches.Verbose);
             var isSerial = args.IsSet(LfxCmdSwitches.Serial);
+            var local = args.IsSet(LfxCmdSwitches.Local);
+            var recurse = args.IsSet(LfxCmdSwitches.R);
+
+            // todo: compute diff to update. for now, nuke lfx
+            //m_env.Dir.DeletePath(force: true);
+            var paths = GetPaths(args.FirstOrDefault(), recurse, local).ToList();
+
+            // log progress
             LfxProgressTracker progress = null;
             Task progressTask = Task.FromResult(true);
-
             if (!isQuiet) {
-                progress = LogProgress(isVerbose);
-                progressTask = progress.ComputeTotalsAsync(m_env);
+                IEnumerable<LfxPath> pathsWithoutMetadata;
+                var counts = m_env.GetLoadEffort(paths, out pathsWithoutMetadata);
+                progress = LogProgress(counts, isVerbose);
             }
 
-            // alias every repo info file in parallel
-            var restoreTask = m_env.InfoDir.GetAllFiles().ParallelForEachAsync(async infoPath => {
-                var repoInfo = m_env.GetRepoInfo(infoPath);
-                var cacheEntry = await m_env.GetOrLoadEntryAsync(repoInfo);
+            // pull content and create aliases
+            var restoreTask = paths
+                .ParallelForEachAsync(async path => {
 
-                // add alias to cached content (wha-bam!)
-                cacheEntry.Path.AliasPath(repoInfo.ContentPath);
+                    if (path.IsExtra) {
+                        path.Path.DeletePath(force: true);
+                        return;
+                    }
 
-                // update repo info file with metadata
-                if (repoInfo.Info != cacheEntry.Info)
-                    infoPath.WriteAllText(cacheEntry.Info.ToString());
-            }, maxDegreeOfParallelism: isSerial ? (int?)1 : null);
+                    if (path.IsDirectory)
+                        return;
 
+                    // fetch content
+                    var content = await m_env.GetOrLoadContentAsync((LfxInfo)path.Info);
+
+                    // link alias to content (wha-bam!)
+                    path.MakeAliasOf(content);
+                },
+                maxDegreeOfParallelism: isSerial ? (int?)1 : null
+            );
+
+            // await compleation
             await restoreTask.JoinWith(progressTask);
+        }
+    }
 
-            if (!isQuiet)
-                progress.Finished();
+    public struct LfxPathEx {
+
+        public static LfxPathEx Create(LfxEnv env, LfxPath path) {
+
+            if (!path.IsContent)
+                return new LfxPathEx(path, null, LfxLoadAction.None, string.Empty);
+
+            var info = (LfxInfo)path.Info;
+            var action = env.GetLoadAction((LfxInfo)path.Info);
+            string alias = null;
+
+            LfxContent content;
+            if (env.TryGetContent(info, out content)) {
+                if (path.Path.IsPathAliasOf(content.Path))
+                    alias = content.Path;
+                info = content.Info;
+            }
+
+            return new LfxPathEx(path, info, action, alias);
+        }
+
+        private readonly LfxPath m_path;
+        private readonly LfxInfo? m_info;
+        private readonly LfxLoadAction m_action;
+        private readonly string m_alias;
+
+        public LfxPathEx(
+            LfxPath path,
+            LfxInfo? info,
+            LfxLoadAction action,
+            string alias) {
+
+            m_path = path;
+            m_info = info;
+            m_action = action;
+            m_alias = alias;
+        }
+
+        public bool IsContent => m_path.IsContent;
+        public LfxInfo? Info => m_info;
+        public LfxPath Path => m_path;
+        public LfxLoadAction Action => m_action;
+        public string Alias => m_alias;
+
+        public string Name => m_path.Name;
+        public bool IsExtra => m_path.IsExtra;
+        public bool IsMissing => m_path.IsMissing;
+        public bool IsFresh => m_alias != null;
+        public bool IsStale => !IsFresh && !IsExtra && !IsMissing;
+
+        public override string ToString() => m_path;
+    }
+
+    public struct LfxLsPathRow {
+        private const int WidthOfType = 5;
+        private const int WidthOfHash = 8;
+        private const int WidthOfDownloadSize = 8;
+        private const int WidthOfSize = 9;
+        private const int WidthOfDiff = 6;
+        private const int WidthOfSync = 6;
+        private const int WidthOfAction = 6;
+
+        private const string Unknown = "?";
+        private const int ShortHashLength = 8;
+        private const string ActionWan = "w";
+        private const string ActionLan = "l";
+        private const string ActionBus = "b";
+        private const string ActionCopy = "c";
+        private const string ActionExpand = "x";
+        private const string ActionAlias = "a";
+        private const string ActionNone = " ";
+        private const string DiffRemove = "remove";
+        private const string DiffAdd = "add";
+        private const string DiffUpdate = "update";
+
+        public static string Header {
+            get {
+                var header = string.Join("  ", new[] {
+                    $"{"Type", -WidthOfType}",
+                    $"{"__Hash__", WidthOfHash}",
+                    $"{"Download", WidthOfDownloadSize}" +
+                    $"{"Size", WidthOfSize}",
+                    $"{"_Diff_", WidthOfDiff}",
+                    $"{"Action", WidthOfAction}",
+                    $"{"Name"}"
+                }).Replace("_", " ");
+                var underline = Regex.Replace(header, @"[^\s]", "-");
+                return header + Environment.NewLine + underline;
+            }
+        }
+
+        private readonly LfxPathEx m_pathEx;
+
+        public LfxLsPathRow(
+            LfxPathEx path) {
+
+            m_pathEx = path;
+        }
+
+        private bool IsContent => m_pathEx.IsContent;
+        private LfxInfo? Info => m_pathEx.Info;
+
+        public string Name => m_pathEx.Name;
+        public string Hash {
+            get {
+                if (!IsContent)
+                    return string.Empty;
+                return Info?.Hash?.ToString().Substring(0, ShortHashLength) ?? Unknown;
+            }
+        }
+        public string DownloadSize {
+            get {
+                if (!IsContent)
+                    return string.Empty;
+                return Info?.DownloadSize?.ToFileSize() ?? Unknown;
+            }
+        }
+        public string Size {
+            get {
+                if (!IsContent)
+                    return string.Empty;
+                return Info?.Size?.ToFileSize() ?? Unknown;
+            }
+        }
+        public string Type {
+            get {
+                if (!IsContent)
+                    return string.Empty;
+
+                var type = Info?.Type;
+                if (type == LfxType.None)
+                    return string.Empty;
+
+                return type.ToString();
+            }
+        }
+        public string Diff {
+            get {
+                if (m_pathEx.IsExtra)
+                    return DiffRemove;
+
+                if (m_pathEx.IsMissing)
+                    return DiffAdd;
+
+                if (m_pathEx.IsStale)
+                    return DiffUpdate;
+
+                return string.Empty;
+            }
+        }
+        public string Action {
+            get {
+                var sb = new StringBuilder();
+                if (IsContent) {
+                    sb.Append(((m_pathEx.Action & LfxLoadAction.DownloadMask) == LfxLoadAction.Wan) ? ActionWan : ActionNone);
+                    sb.Append(((m_pathEx.Action & LfxLoadAction.DownloadMask) == LfxLoadAction.Lan) ? ActionLan : ActionNone);
+                    sb.Append(((m_pathEx.Action & LfxLoadAction.DownloadMask) == LfxLoadAction.Bus) ? ActionBus : ActionNone);
+                    sb.Append(((m_pathEx.Action & LfxLoadAction.ExpandMask) == LfxLoadAction.Copy) ? ActionCopy : ActionNone);
+                    sb.Append(((m_pathEx.Action & LfxLoadAction.ExpandMask) == LfxLoadAction.Expand) ? ActionExpand : ActionNone);
+                    sb.Append(!m_pathEx.IsFresh ? ActionAlias : ActionNone);
+                }
+                return sb.ToString();
+            }
+        }
+
+        public override string ToString() => ToString(false);
+        public string ToString(bool showAlias = false) {
+            var result = string.Join("  ", new[] {
+                $"{Type, -WidthOfType}",
+                $"{Hash, WidthOfHash}",
+                $"{DownloadSize, WidthOfDownloadSize}" +
+                $"{Size, WidthOfSize}",
+                $"{Diff, WidthOfDiff}",
+                $"{Action, WidthOfAction}",
+                $"{Name}"
+            });
+
+            if (showAlias && m_pathEx.IsFresh)
+                result += $" -> {m_pathEx.Alias}";
+
+            return result;
         }
     }
 }
