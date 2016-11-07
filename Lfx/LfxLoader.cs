@@ -8,7 +8,7 @@ using System.Linq;
 using System.Reflection;
 using System.Net;
 
-namespace Git.Lfx {
+namespace Lfx {
 
     [Flags]
     public enum LfxProgressType {

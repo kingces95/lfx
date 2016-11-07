@@ -8,7 +8,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Util;
 
-namespace Git.Lfx {
+namespace Lfx {
 
     public enum LfxType {
         None = 0,

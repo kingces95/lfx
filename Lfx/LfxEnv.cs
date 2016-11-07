@@ -1,5 +1,4 @@
 ﻿using System;
-using Git.Lfx;
 using Util;
 using System.IO;
 using System.Threading.Tasks;

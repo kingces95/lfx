@@ -47,6 +47,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Cmd.cs" />
+    <Compile Include="CmdStream.cs" />
     <Compile Include="HardLinkEnumerator.cs" />
     <Compile Include="JunctionPoints.cs" />
     <Compile Include="LazyTask.cs" />

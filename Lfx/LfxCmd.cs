@@ -2,9 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Git;
+using Lfx;
 using System.Threading.Tasks;
-using Git.Lfx;
 using Util;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -26,11 +25,8 @@ namespace Lfx {
         R, Alias
     }
 
-    public sealed class LfxCmdException : Exception {
-        public LfxCmdException(string message) : base(message) { }
-    }
     public sealed class LfxCmd {
-        public const string Exe = "git-lfx.exe";
+        public const string Exe = "lfx.exe";
 
         private readonly object Lock = new object();
         private readonly string m_commandLine;
@@ -51,7 +47,7 @@ namespace Lfx {
 
             try {
 
-                var args = GitCmdArgs.Parse(m_commandLine);
+                var args = LfxCmdArgs.Parse(m_commandLine);
                 var name = args.Name;
 
                 // default
@@ -63,7 +59,7 @@ namespace Lfx {
                 // check name
                 var method = typeof(LfxCmd).GetMethod(name, bf);
                 if (method == null)
-                    throw new GitCmdException($"Command '{name}' unrecognized.");
+                    throw new LfxCmdException($"Command '{name}' unrecognized.");
 
                 // dispach
                 var result = method.Invoke(this, null) as Task;
@@ -74,15 +70,15 @@ namespace Lfx {
                 Log(e);
             }
         }
-        private GitCmdArgs Parse(
+        private LfxCmdArgs Parse(
             int minArgs = 0,
             int maxArgs = int.MaxValue,
-            IEnumerable<GitCmdSwitchInfo> switchInfo = null) {
+            IEnumerable<LfxCmdSwitchInfo> switchInfo = null) {
 
             if (switchInfo == null)
-                switchInfo = GitCmdSwitchInfo.Create();
+                switchInfo = LfxCmdSwitchInfo.Create();
 
-            return GitCmdArgs.Parse(m_commandLine, minArgs, maxArgs, switchInfo);
+            return LfxCmdArgs.Parse(m_commandLine, minArgs, maxArgs, switchInfo);
         }
         private void Log(object value = null) => m_env.Log(value);
         private void Log(Exception e, string indent = "") {
@@ -119,8 +115,8 @@ namespace Lfx {
         }
 
         public void Help() {
-            Log("git-lfx/0.2.0 (GitHub; corclr)");
-            Log("git lfx <command> [<args>]");
+            Log("lfx/0.2.0 (GitHub; corclr)");
+            Log("lfx <command> [<args>]");
             Log();
             Log("Env                                Dump environment.");
             Log();
@@ -179,7 +175,7 @@ namespace Lfx {
             var args = Parse(
                 minArgs: 0,
                 maxArgs: 0,
-                switchInfo: GitCmdSwitchInfo.Create(
+                switchInfo: LfxCmdSwitchInfo.Create(
                     LfxCmdSwitches.Clean,
                     LfxCmdSwitches.Clear,
                     LfxCmdSwitches.F, LfxCmdSwitches.Force
@@ -233,7 +229,7 @@ namespace Lfx {
             var args = Parse(
                 minArgs: 1,
                 maxArgs: 1,
-                switchInfo: GitCmdSwitchInfo.Create(
+                switchInfo: LfxCmdSwitchInfo.Create(
                     LfxCmdSwitches.Hash 
                )
             );
@@ -294,7 +290,7 @@ namespace Lfx {
             var args = Parse(
                 minArgs: minArgs,
                 maxArgs: minArgs + 1,
-                switchInfo: GitCmdSwitchInfo.Create(
+                switchInfo: LfxCmdSwitchInfo.Create(
                     LfxCmdSwitches.Quite, LfxCmdSwitches.Q,
                     LfxCmdSwitches.Exe,
                     LfxCmdSwitches.Zip
@@ -369,7 +365,7 @@ namespace Lfx {
             var args = Parse(
                 minArgs: 0,
                 maxArgs: 1,
-                switchInfo: GitCmdSwitchInfo.Create(
+                switchInfo: LfxCmdSwitchInfo.Create(
                     LfxCmdSwitches.R,
                     LfxCmdSwitches.Alias,
                     LfxCmdSwitches.Local
@@ -408,7 +404,7 @@ namespace Lfx {
             var args = Parse(
                 minArgs: 0,
                 maxArgs: 1,
-                switchInfo: GitCmdSwitchInfo.Create(
+                switchInfo: LfxCmdSwitchInfo.Create(
                     LfxCmdSwitches.Quite, LfxCmdSwitches.Q,
                     LfxCmdSwitches.Verbose, LfxCmdSwitches.V,
                     LfxCmdSwitches.Serial,

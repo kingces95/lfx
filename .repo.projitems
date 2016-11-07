@@ -10,14 +10,13 @@
   </PropertyGroup>
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory).gitignore" />
-    <None Include="$(MSBuildThisFileDirectory)Git-Lfx\git-lfx.csproj" />
-    <None Include="$(MSBuildThisFileDirectory)Git.Lfx.Test\Git.Lfx.Test.csproj" />
-    <None Include="$(MSBuildThisFileDirectory)Git.Lfx\Git.Lfx.csproj" />
-    <None Include="$(MSBuildThisFileDirectory)Git.Test\Git.Test.csproj" />
-    <None Include="$(MSBuildThisFileDirectory)Git\Git.csproj" />
+    <None Include="$(MSBuildThisFileDirectory)Lfx\Lfx.csproj" />
+    <None Include="$(MSBuildThisFileDirectory)Lfx.Test\Lfx.Test.csproj" />
+    <None Include="$(MSBuildThisFileDirectory)Lfx\Lfx.csproj" />
     <None Include="$(MSBuildThisFileDirectory)lfx.nuspec" />
     <None Include="$(MSBuildThisFileDirectory)LICENSE.md" />
     <None Include="$(MSBuildThisFileDirectory)README.md" />
+    <None Include="$(MSBuildThisFileDirectory)Util\Util.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)AssemblyVersion.cs" />

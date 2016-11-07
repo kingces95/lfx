@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Util;
 using System.Threading;
 
-namespace Git {
+namespace Util {
 
     public sealed class CmdStream : Stream {
 

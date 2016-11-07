@@ -2,7 +2,7 @@
 using System.Threading.Tasks;
 using Util;
 
-namespace Git {
+namespace Util {
 
     public sealed class Cmd {
 
