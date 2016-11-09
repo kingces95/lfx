@@ -327,10 +327,6 @@ namespace Lfx {
             }
         }
 
-        private const int L1PartitionCount = 2;
-        private const int L2PartitionCount = 2;
-        private const int MinimumHashLength = L1PartitionCount + L2PartitionCount;
-
         public const string UrlHashToArchiveIdDirName = "urlHashToArchiveId";
         public const string ContentIdToInfo = "contentIdToInfo";
         public const string CompressedDirName = "archive";
@@ -372,6 +368,14 @@ namespace Lfx {
                 throw new WebException($"Failed to download {url}.", e);
             }
         }
+
+        private const int L1PartitionCount = 2;
+        private const int L2PartitionCount = 2;
+        private const int MinimumHashLength = L1PartitionCount + L2PartitionCount;
+
+        private static string ShimProps = $"shim.props";
+        private static string ShimTargets = $"shim.targets";
+        private static string PackageProps = $"package.props";
 
         private readonly ConcurrentDictionary<LfxArchiveId, Uri> m_knownArchives;
         private readonly ConcurrentDictionary<LfxId, LfxPointer> m_knownContent;
@@ -423,16 +427,30 @@ namespace Lfx {
                 // expand zip
                 if (pointer.IsZip || pointer.IsNuget) {
 
+                    // decompress
+                    await compressedPath.ExpandZip(tempDir, bytes => {
+                        if (bytes == null)
+                            return;
+                        RaiseProgressExpandEvent(compressedPath, tempDir, bytes);
+                    });
+
                     // inject nuget shims
                     if (pointer.IsNuget) {
-                        WriteResource($"nuget.v{pointer.Version}", "shim.targets", compressedPath, tempDir);
-                        WriteResource($"nuget.v{pointer.Version}", "shim.props", compressedPath, tempDir);
+
+                        var resourcePath = $"nuget.v{pointer.Version}";
+                        WriteResource(resourcePath, ShimTargets, compressedPath, tempDir);
+                        WriteResource(resourcePath, ShimProps, compressedPath, tempDir);
+                        if (pointer.Version == 2) {
+                            var tempLibDir = Path.Combine(tempDir, "lib");
+                            resourcePath += $".lib";
+
+                            WriteResource(resourcePath, PackageProps, compressedPath, tempLibDir);
+                            foreach (var tempTargetFrameworkDir in tempLibDir.GetAllDirectories())
+                                WriteResource(resourcePath, PackageProps, compressedPath, tempTargetFrameworkDir);
+                        }
                     }
 
-                    // decompress
-                    await compressedPath.ExpandZip(tempDir, bytes =>
-                        RaiseProgressExpandEvent(compressedPath, tempDir, bytes)
-                    );
+                    RaiseProgressExpandEvent(compressedPath, tempDir, null /*finished*/);
                 }
 
                 // expand exe

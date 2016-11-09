@@ -309,10 +309,10 @@ namespace Lfx {
 
             // make pointer
             var pointer =
-                isExe ? LfxPointer.CreateExe(url, exeArgs) :
-                isZip ? LfxPointer.CreateZip(url) :
-                isNuget ? LfxPointer.CreateNuget(url) :
-                LfxPointer.CreateFile(url);
+                isExe ? LfxPointer.CreateExe(url, LfxPointer.DefaultExeVersion, exeArgs) :
+                isZip ? LfxPointer.CreateZip(url, LfxPointer.DefaultZipVersion) :
+                isNuget ? LfxPointer.CreateNuget(url, LfxPointer.DefaultNugetVersion) :
+                LfxPointer.CreateFile(url, LfxPointer.DefaultFileVersion);
 
             // log progress
             if (!isQuiet)
@@ -465,7 +465,6 @@ namespace Lfx {
                 return new LfxPathEx(path, null, LfxLoadAction.None, string.Empty);
 
             var info = (LfxInfo)path.Info;
-            var action = env.GetLoadAction((LfxInfo)path.Info);
             string alias = null;
 
             LfxContent content;
@@ -475,6 +474,7 @@ namespace Lfx {
                 info = content.Info;
             }
 
+            var action = env.GetLoadAction((LfxInfo)path.Info);
             return new LfxPathEx(path, info, action, alias);
         }
 

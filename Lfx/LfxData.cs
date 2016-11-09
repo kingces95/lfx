@@ -120,23 +120,26 @@ namespace Lfx {
     }
 
     public struct LfxPointer : IEquatable<LfxPointer> {
-        public const int CurrentVersion = 1;
+        public const int DefaultFileVersion = 1;
+        public const int DefaultZipVersion = 1;
+        public const int DefaultExeVersion = 1;
+        public const int DefaultNugetVersion = 2;
 
         public static bool operator ==(LfxPointer lhs, LfxPointer rhs) => lhs.Equals(rhs);
         public static bool operator !=(LfxPointer lhs, LfxPointer rhs) => !lhs.Equals(rhs);
         public static implicit operator Uri(LfxPointer id) => id.Url;
 
-        public static LfxPointer CreateFile(Uri url) {
-            return new LfxPointer(LfxType.File, url);
+        public static LfxPointer CreateFile(Uri url, int version) {
+            return new LfxPointer(LfxType.File, url, version);
         }
-        public static LfxPointer CreateExe(Uri url, string args) {
-            return new LfxPointer(LfxType.Exe, url, args: args);
+        public static LfxPointer CreateExe(Uri url, int version, string args) {
+            return new LfxPointer(LfxType.Exe, url, version, args);
         }
-        public static LfxPointer CreateZip(Uri url) {
-            return new LfxPointer(LfxType.Zip, url);
+        public static LfxPointer CreateZip(Uri url, int version) {
+            return new LfxPointer(LfxType.Zip, url, version);
         }
-        public static LfxPointer CreateNuget(Uri url) {
-            return new LfxPointer(LfxType.Nuget, url);
+        public static LfxPointer CreateNuget(Uri url, int version) {
+            return new LfxPointer(LfxType.Nuget, url, version);
         }
 
         private readonly LfxType m_type;
@@ -148,7 +151,7 @@ namespace Lfx {
         private LfxPointer(
             LfxType type,
             Uri url,
-            int version = CurrentVersion,
+            int version,
             string args = null)
             : this() {
 
@@ -307,10 +310,10 @@ namespace Lfx {
 
                 // pointer
                 var pointer =
-                    type == LfxType.File ? LfxPointer.CreateFile(url) :
-                    type == LfxType.Zip ? LfxPointer.CreateZip(url) :
-                    type == LfxType.Nuget ? LfxPointer.CreateNuget(url) :
-                    LfxPointer.CreateExe(url, args);
+                    type == LfxType.File ? LfxPointer.CreateFile(url, version) :
+                    type == LfxType.Zip ? LfxPointer.CreateZip(url, version) :
+                    type == LfxType.Nuget ? LfxPointer.CreateNuget(url, version) :
+                    LfxPointer.CreateExe(url, version, args);
 
                 // pointer only?
                 var hashLine = sr.ReadLine();
