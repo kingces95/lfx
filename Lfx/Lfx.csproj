@@ -78,6 +78,9 @@
     <EmbeddedResource Include="resources\nuget\v2\shim.props" />
     <EmbeddedResource Include="resources\nuget\v2\shim.targets" />
     <EmbeddedResource Include="resources\nuget\v2\lib\package.props" />
+    <EmbeddedResource Include="resources\nuget\v3\lib\shim.props" />
+    <EmbeddedResource Include="resources\nuget\v3\build\shim.targets" />
+    <EmbeddedResource Include="resources\nuget\v3\build\shim.props" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Util\Util.csproj">

@@ -418,14 +418,14 @@ namespace Util {
             return size;
         }
 
-        public static IEnumerable<string> GetFiles(this string path) {
-            return Directory.GetFiles(path);
+        public static IEnumerable<string> GetFiles(this string path, string searchPattern = "*") {
+            return Directory.GetFiles(path, searchPattern);
         }
         public static IEnumerable<FileInfo> GetFileInfos(this string path) {
             return new DirectoryInfo(path).GetFiles();
         }
         public static IEnumerable<string> GetDirectories(this string path) {
-            return Directory.GetDirectories(path);
+            return Directory.GetDirectories(path).Select(o => o.ToDir());
         }
         public static IEnumerable<DirectoryInfo> GetDirectoryInfos(this string path) {
             return new DirectoryInfo(path).GetDirectories();

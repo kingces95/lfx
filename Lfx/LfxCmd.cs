@@ -115,7 +115,7 @@ namespace Lfx {
         }
 
         public void Help() {
-            Log("lfx/0.2.0 (GitHub; corclr)");
+            Log("lfx/0.2.1 (GitHub; corclr)");
             Log("lfx <command> [<args>]");
             Log();
             Log("Env                                Dump environment.");
@@ -513,6 +513,7 @@ namespace Lfx {
     public struct LfxLsPathRow {
         private const int WidthOfType = 5;
         private const int WidthOfHash = 8;
+        private const int WidthOfVersion = 1;
         private const int WidthOfDownloadSize = 8;
         private const int WidthOfSize = 9;
         private const int WidthOfDiff = 6;
@@ -536,6 +537,7 @@ namespace Lfx {
             get {
                 var header = string.Join("  ", new[] {
                     $"{"Type", -WidthOfType}",
+                    $"{"V", WidthOfVersion}",
                     $"{"__Hash__", WidthOfHash}",
                     $"{"Download", WidthOfDownloadSize}" +
                     $"{"Size", WidthOfSize}",
@@ -560,6 +562,11 @@ namespace Lfx {
         private LfxInfo? Info => m_pathEx.Info;
 
         public string Name => m_pathEx.Name;
+        public string Version {
+            get {
+                return Info?.Version.ToString();
+            }
+        }
         public string Hash {
             get {
                 if (!IsContent)
@@ -626,6 +633,7 @@ namespace Lfx {
         public string ToString(bool showAlias = false) {
             var result = string.Join("  ", new[] {
                 $"{Type, -WidthOfType}",
+                $"{Version, WidthOfVersion}",
                 $"{Hash, WidthOfHash}",
                 $"{DownloadSize, WidthOfDownloadSize}" +
                 $"{Size, WidthOfSize}",

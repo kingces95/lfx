@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--package id: '{0}'-->
+
+  <!--import next shim.targets-->
+  <PropertyGroup>
+    <NugetTargetListIndex>$([MSBuild]::Add('1', $(NugetTargetListIndex)))</NugetTargetListIndex>
+    <_NugetTargetShim Condition="'$(NugetTargetListIndex)'!='$(NugetTargetListCount)'"
+      >$(NugetTargetList.Split(';')[$(NugetTargetListIndex)])</_NugetTargetShim>
+  </PropertyGroup>
+  <Import Condition="Exists('$(_NugetTargetShim)')" Project="$(_NugetTargetShim)"/>
+
+  <!--import {0}.targets-->
+  <Import Condition="Exists('{0}.targets')" Project="{0}.targets"/>
+</Project>

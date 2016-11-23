@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Reflection;
 using System.Net;
+using System.Diagnostics;
 
 namespace Lfx {
 
@@ -373,6 +374,11 @@ namespace Lfx {
         private const int L2PartitionCount = 2;
         private const int MinimumHashLength = L1PartitionCount + L2PartitionCount;
 
+        private static string AnyDlls = $"*.dll";
+        private static string AnyProps = $"*.props";
+        private static string AnyTargets = $"*.targets";
+        private static string LibDir = $"lib";
+        private static string BuildDir = $"build";
         private static string ShimProps = $"shim.props";
         private static string ShimTargets = $"shim.targets";
         private static string PackageProps = $"package.props";
@@ -435,20 +441,8 @@ namespace Lfx {
                     });
 
                     // inject nuget shims
-                    if (pointer.IsNuget) {
-
-                        var resourcePath = $"nuget.v{pointer.Version}";
-                        WriteResource(resourcePath, ShimTargets, compressedPath, tempDir);
-                        WriteResource(resourcePath, ShimProps, compressedPath, tempDir);
-                        if (pointer.Version == 2) {
-                            var tempLibDir = Path.Combine(tempDir, "lib");
-                            resourcePath += $".lib";
-
-                            WriteResource(resourcePath, PackageProps, compressedPath, tempLibDir);
-                            foreach (var tempTargetFrameworkDir in tempLibDir.GetAllDirectories())
-                                WriteResource(resourcePath, PackageProps, compressedPath, tempTargetFrameworkDir);
-                        }
-                    }
+                    if (pointer.IsNuget)
+                        ExpandNugetArchive(pointer, compressedPath, tempDir);
 
                     RaiseProgressExpandEvent(compressedPath, tempDir, null /*finished*/);
                 }
@@ -475,7 +469,113 @@ namespace Lfx {
                 readOnlyArchiveCacheDir: lanCacheDir?.PathCombine(UrlHashToArchiveIdDirName)
             );  
         }
+        private void ExpandNugetArchive(LfxPointer pointer, string compressedPath, string tempDir) {
+            switch (pointer.Version) {
+                case 1: ExpandNugetArchiveV1(pointer, compressedPath, tempDir); break;
+                case 2: ExpandNugetArchiveV2(pointer, compressedPath, tempDir); break;
+                case 3: ExpandNugetArchiveV3(pointer, compressedPath, tempDir); break;
+            }
+        }
 
+        private class TfmDir {
+            public static IEnumerable<TfmDir> FindLibDirs(LfxPointer pointer, string path) {
+                var url = pointer.Url;
+                return Find(url, path, LibDir, o => o.GetFiles(AnyDlls).Any());
+            }
+            public static IEnumerable<TfmDir> FindBuildDirs(LfxPointer pointer, string path) {
+                var url = pointer.Url;
+                return Find(url, path, BuildDir, o => o.GetFiles(AnyProps).Any() || o.GetFiles(AnyTargets).Any());
+            }
+            public static IEnumerable<TfmDir> Find(Uri url, string path, string type, Func<string, bool> predicate) {
+                var typeDir = Path.Combine(path, type);
+                if (typeDir.PathExistsAsDirectory()) {
+                    if (predicate(typeDir))
+                        yield return new TfmDir(url, path, type, null);
+
+                    var dirs = typeDir.GetDirectories();
+                    foreach (var dir in dirs.Where(o => predicate(o)))
+                        yield return new TfmDir(url, path, type, dir.GetDirectoryName());
+                }
+            }
+
+            private readonly string m_dir;
+            private readonly string m_type;
+            private readonly string m_id;
+            private readonly string m_version;
+            private readonly string m_tfm;
+
+            public TfmDir(Uri url, string rootDir, string type, string tfm) {
+                m_type = type;
+                m_tfm = tfm;
+                m_dir = Path.Combine(rootDir, type, tfm ?? string.Empty);
+
+                var segmentsReversed = url.Segments.Reverse();
+                m_version = segmentsReversed.First().Trim('/');
+                m_id = segmentsReversed.Skip(1).First().Trim('/');
+            }
+
+            public string Dir => m_dir;
+            public string Type => m_type;
+            public string Id => m_id;
+            public string Version => m_version;
+            public string Tfm => m_tfm;
+
+            public string GetResource(string name) {
+                var resourcePath = $"{typeof(TfmDir).Namespace}.resources.nuget.v3.{m_type}.{name}";
+
+                var assembly = Assembly.GetExecutingAssembly();
+                using (var sr = new StreamReader(assembly.GetManifestResourceStream(resourcePath)))
+                    return string.Format(sr.ReadToEnd(), Id, Version, Tfm);
+            }
+            public string WriteResource(string name) {
+                var resource = GetResource(name);
+
+                var path = Path.Combine(m_dir, name);
+                File.WriteAllText(path, resource);
+                return path;
+            }
+
+            public override string ToString() => m_dir;
+        }
+        private void ExpandNugetArchiveV3(LfxPointer pointer, string compressedPath, string tempDir) {
+
+            foreach (var libDir in TfmDir.FindLibDirs(pointer, tempDir)) {
+                // augment NugetDependency and NugetReference
+                var targetPath = libDir.WriteResource(ShimProps);
+                RaiseProgressExpandEvent(compressedPath, targetPath, targetPath.GetFileSize());
+            }
+
+            foreach (var buildDir in TfmDir.FindBuildDirs(pointer, tempDir)) {
+                // import <package>.props
+                var targetPath = buildDir.WriteResource(ShimProps);
+                RaiseProgressExpandEvent(compressedPath, targetPath, targetPath.GetFileSize());
+
+                // import <package>.targets
+                targetPath = buildDir.WriteResource(ShimTargets);
+                RaiseProgressExpandEvent(compressedPath, targetPath, targetPath.GetFileSize());
+            }
+        }
+        private void ExpandNugetArchiveV2(LfxPointer pointer, string compressedPath, string tempDir) {
+            var resourcePath = $"nuget.v{pointer.Version}";
+            WriteResource(resourcePath, ShimTargets, compressedPath, tempDir);
+            WriteResource(resourcePath, ShimProps, compressedPath, tempDir);
+
+            var tempLibDir = Path.Combine(tempDir, LibDir);
+            if (!tempLibDir.PathExistsAsDirectory())
+                return;
+
+            var targetDirs = new List<string>() { tempLibDir };
+            targetDirs.AddRange(tempLibDir.GetDirectories());
+
+            resourcePath += $".{LibDir}";
+            foreach (var targetDir in targetDirs.Where(o => o.GetFiles(AnyDlls).Any()))
+                WriteResource(resourcePath, PackageProps, compressedPath, targetDir);
+        }
+        private void ExpandNugetArchiveV1(LfxPointer pointer, string compressedPath, string tempDir) {
+            var resourcePath = $"nuget.v{pointer.Version}";
+            WriteResource(resourcePath, ShimTargets, compressedPath, tempDir);
+            WriteResource(resourcePath, ShimProps, compressedPath, tempDir);
+        }
         private void WriteResource(string resourcePath, string resourceName, string compressedPath, string targetDir) {
             var assembly = Assembly.GetExecutingAssembly();
             var resourceId = $"{GetType().Namespace}.resources.{resourcePath}.{resourceName}";

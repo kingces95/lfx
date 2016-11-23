@@ -7,14 +7,7 @@
     <_NugetPackageDir>$(MSBuildThisFileDirectory)</_NugetPackageDir>
   </PropertyGroup>
 
-  <ItemGroup>
-    <NugetPackageDir Include="$(_NugetPackageDir)">
-      <TargetFrameworkSubDir>$([MSBuild]::MakeRelative($(_NugetPackageDir)lib\, $(_NugetPackageTargetFrameworkDir)))</TargetFrameworkSubDir>
-    </NugetPackageDir>
-  </ItemGroup>
-
   <PropertyGroup>
-
     <!--infer package id and version from current directory-->
     <_NugetPackageFullName>$([System.IO.Path]::GetFileName( $([System.IO.Path]::GetDirectoryName($(_NugetPackageDir))) ))</_NugetPackageFullName>
     <_NugetPackageId>$([System.Text.RegularExpressions.Regex]::Match('$(_NugetPackageFullName)','$(NugetPackageIdRegex)'))</_NugetPackageId>

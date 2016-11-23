@@ -119,13 +119,13 @@ namespace Util {
 
         public ConstDirectory(string dir, Func<string, string> keyToCachePath = null) {
             m_dir = dir.ToDir();
-            m_globalTempDir = Path.Combine(dir, TempDirName);
+            m_globalTempDir = Path.Combine(dir, TempDirName).ToDir();
             m_lockPath = Path.Combine(m_dir, LockFileName);
             m_keyToCachePath = keyToCachePath ?? (o => o);
 
             // if read-only then cannot create tempDir
             m_tempDir = new Lazy<TempDir>(() =>
-                new TempDir(Path.Combine(m_globalTempDir, Path.GetRandomFileName()))
+                new TempDir(Path.Combine(m_globalTempDir, Path.GetRandomFileName()).ToDir())
             );
         }
 

@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--package id: '{0}'-->
+  <!--package version: '{1}'-->
+  <!--target framework: '{2}'-->
+  
+  <ItemGroup>
+    <NugetDependency Include="{0}.{1}">
+      <Name>{0}</Name>
+      <Version>{1}</Version>
+      <HintPath>$(MSBuildThisFileDirectory)</HintPath>
+    </NugetDependency>
+    <NugetReference Include="$(MSBuildThisFileDirectory)*.dll" >
+      <PackageName>{0}</PackageName>
+      <PackageVersion>{1}</PackageVersion>
+      <TargetFramework>{2}</TargetFramework>
+    </NugetReference>
+  </ItemGroup>
+</Project>
