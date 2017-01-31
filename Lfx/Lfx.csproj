@@ -33,6 +33,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <UseVSHostingProcess>false</UseVSHostingProcess>
   </PropertyGroup>
   <PropertyGroup>
     <RunPostBuildEvent>Always</RunPostBuildEvent>
@@ -80,7 +81,18 @@
     <EmbeddedResource Include="resources\nuget\v2\lib\package.props" />
     <EmbeddedResource Include="resources\nuget\v3\lib\shim.props" />
     <EmbeddedResource Include="resources\nuget\v3\build\shim.targets" />
-    <EmbeddedResource Include="resources\nuget\v3\build\shim.props" />
+    <EmbeddedResource Include="resources\nuget\v3\build\shim.props">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="resources\nuget\v4\build\shim.props">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="resources\nuget\v4\build\shim.targets">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="resources\nuget\v4\lib\shim.props">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Util\Util.csproj">

@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <!--package id: '{0}'-->
+  <!--package name: '{0}'-->
 
   <!--import next shim.targets-->
   <PropertyGroup>
@@ -8,8 +8,11 @@
     <_NugetTargetShim Condition="'$(NugetTargetListIndex)'!='$(NugetTargetListCount)'"
       >$(NugetTargetList.Split(';')[$(NugetTargetListIndex)])</_NugetTargetShim>
   </PropertyGroup>
-  <Import Condition="Exists('$(_NugetTargetShim)')" Project="$(_NugetTargetShim)"/>
+  <Import Condition="'$(NugetTargetListIndex)'!='$(NugetTargetListCount)'" Project="$(_NugetTargetShim)"/>
 
   <!--import {0}.targets-->
-  <Import Condition="Exists('$(MSBuildThisFileDirectory){0}.targets')" Project="$(MSBuildThisFileDirectory){0}.targets"/>
+  <Import 
+    Condition="Exists('$(MSBuildThisFileDirectory){0}.targets')" 
+    Project="$(MSBuildThisFileDirectory){0}.targets"
+  />
 </Project>

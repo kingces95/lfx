@@ -115,7 +115,7 @@ namespace Lfx {
         }
 
         public void Help() {
-            Log("lfx/0.2.1 (GitHub; corclr)");
+            Log("lfx/0.2.2 (GitHub; corclr)");
             Log("lfx <command> [<args>]");
             Log();
             Log("Env                                Dump environment.");

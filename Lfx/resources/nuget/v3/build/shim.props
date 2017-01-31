@@ -3,10 +3,10 @@
   <!--package id: '{0}'-->
 
   <!--import {0}.props-->
-  <Import Condition="Exists('{0}.props')" Project="{0}.props"/>
+  <Import Condition="Exists('$(MSBuildThisFileDirectory){0}.props')" Project="$(MSBuildThisFileDirectory){0}.props"/>
 
   <!--delay import of {0}.targets-->
   <PropertyGroup>
-    <NugetTargetList Condition="Exists('{0}.targets')">$(MSBuildThisFileDirectory){0}.targets;$(NugetTargetList)</NugetTargetList>
+    <NugetTargetList Condition="Exists('$(MSBuildThisFileDirectory){0}.targets')">$(MSBuildThisFileDirectory){0}.targets;$(NugetTargetList)</NugetTargetList>
   </PropertyGroup>
 </Project>

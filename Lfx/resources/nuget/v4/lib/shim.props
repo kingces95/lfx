@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--package name: '{0}'-->
+  <!--package version: '{1}'-->
+  <!--package id: '{3}'-->
+  <!--build dir: '{4}'-->
+
+  <ItemGroup>
+    <NugetReference Include="{3}" >
+      <Name>{0}</Name>
+      <Version>{1}</Version>
+      <HintPath>$(MSBuildThisFileDirectory)</HintPath>
+    </NugetReference>
+  </ItemGroup>
+
+  <Import 
+    Condition="'{4}'!=''" 
+    Project="$(MSBuildThisFileDirectory){4}shim.props"
+  />
+</Project>
